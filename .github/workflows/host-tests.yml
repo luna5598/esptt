@@ -1,0 +1,16 @@
+name: Host tests
+on: [pull_request, push]
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: cmake -S tests -B build-host -DCMAKE_C_FLAGS="-Wall -Wextra -Werror"
+      - run: cmake --build build-host
+      - run: ctest --test-dir build-host --output-on-failure
+      - run: python3 tests/test_lab.py

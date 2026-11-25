@@ -11,3 +11,8 @@ add_test(NAME course COMMAND test_course)
 add_executable(test_reader test_reader.c ../components/limb_reader/limb_reader.c)
 target_include_directories(test_reader PRIVATE ../components/limb_reader/include ../components/limb_protocol/include)
 add_test(NAME reader COMMAND test_reader)
+add_executable(test_temperature_node test_temperature_node.c
+    ../limbs/stc32g/temperature_node.c ../components/limb_reader/limb_reader.c)
+target_include_directories(test_temperature_node PRIVATE ../limbs/stc32g
+    ../components/limb_reader/include ../components/limb_protocol/include)
+add_test(NAME temperature_node COMMAND test_temperature_node)
