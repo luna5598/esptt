@@ -2,6 +2,7 @@
 #define MOBAN_CORE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MO_SLOT_COUNT 4u
 #define MO_GOAL 10u
@@ -25,6 +26,7 @@ typedef struct {
     uint64_t time_ms[MO_GOAL];
 } mo_course_view;
 
+bool mo_sample_fresh(const mo_slot_view *slot, uint64_t now_ms);
 void mo_init(uint64_t boot_id);
 int mo_presence(uint32_t slot, uint32_t present);
 int mo_sample(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now_ms,

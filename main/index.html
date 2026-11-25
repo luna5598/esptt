@@ -13,7 +13,10 @@ button{background:#235c4c;color:white}button:disabled{opacity:.45}#samples{overf
 <section><h2>四肢槽位</h2><div id="slots"></div></section>
 <section><h2>温度记录</h2><p id="phase">等待设备</p><progress id="progress" value="0" max="10"></progress>
 <p id="samples"></p><label>采样位置 <select id="target"></select></label> <button id="action" disabled>开始记录</button>
-<p id="result" role="status"></p></section></main>
+<p id="result" role="status"></p></section>
+<section id="agent" hidden><h2>温湿度问答</h2><form id="askform">
+<label>问 MO伴 <input id="question" maxlength="128" required placeholder="左手现在多少度？"></label>
+<button id="askbutton">提问</button></form><p id="answer" role="status"></p></section></main>
 <script>
 const el=id=>document.getElementById(id);
 const links={offline:'节点离线',empty:'未插配件',pending:'识别中',unsupported:'当前课程不支持此配件',foreign_binding:'节点会话不匹配，请复位该槽',bad_frame:'帧校验或身份错误',link_fault:'总线或节点故障',invalid_sample:'样本无效',unchanged:'等待新样本',sample:'温湿度'};
@@ -27,6 +30,7 @@ let state=null,online=false,busy=false;
 });
 function render(){
   if(!state)return;
+  el('agent').hidden=!state.agent_enabled;
   const {course:c,slots}=state;
   slots.forEach((s,i)=>{el('slots').children[i].lastChild.textContent=s.fresh
     ? (s.temp_centi/100).toFixed(2)+' °C　'+(s.humidity_centi/100).toFixed(1)+' %RH'
@@ -43,6 +47,18 @@ async function refresh(){
   catch{online=false;el('network').textContent='设备连接中断';}
   render();
 }
+el('askform').onsubmit=async event=>{
+  event.preventDefault();
+  const question=el('question').value.trim();
+  if(!question||el('askbutton').disabled)return;
+  el('askbutton').disabled=true;
+  el('answer').textContent='正在查询设备…';
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'X-MOBan-UI':'1'},body:question});
+    el('answer').textContent=await r.text();
+  }catch{el('answer').textContent='设备连接中断';}
+  finally{el('askbutton').disabled=false;}
+};
 el('target').onchange=render;
 el('action').onclick=async()=>{
   if(busy||!state||!online)return;busy=true;render();const c=state.course,i=Number(el('target').value);

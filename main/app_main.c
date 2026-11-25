@@ -10,6 +10,7 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "runtime.h"
+#include "agent_network.h"
 
 #if !CONFIG_IDF_TARGET_ESP32S31
 #error Select esp32s31 as the target.
@@ -53,5 +54,8 @@ void app_main(void)
            (char *)cfg.ap.ssid, (char *)cfg.ap.password, IP2STR(&ip.ip));
     esp_err_t bus = limb_bus_start();
     if (bus != ESP_OK) ESP_LOGE("board", "Limb bus unavailable: %s", esp_err_to_name(bus));
+    esp_err_t agent = agent_network_start();
+    if (agent != ESP_OK && agent != ESP_ERR_NVS_NOT_FOUND)
+        ESP_LOGW("agent", "Online questions unavailable: %s", esp_err_to_name(agent));
     ESP_ERROR_CHECK(web_start());
 }

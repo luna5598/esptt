@@ -75,12 +75,18 @@ void mo_invalidate(uint32_t slot)
     if (slot < MO_SLOT_COUNT) slots[slot].has_sample = 0;
 }
 
+bool mo_sample_fresh(const mo_slot_view *slot, uint64_t now)
+{
+    return slot->present && slot->has_sample && now >= slot->sampled_ms &&
+           now - slot->sampled_ms <= MO_FRESH_MS;
+}
+
 int mo_read(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now)
 {
     int rc = check_target(boot, slot, generation);
     if (rc != MO_OK) return rc;
     const mo_slot_view *s = &slots[slot];
-    if (!s->has_sample || now - s->sampled_ms > MO_FRESH_MS) return MO_NO_FRESH_DATA;
+    if (!mo_sample_fresh(s, now)) return MO_NO_FRESH_DATA;
     return MO_OK;
 }
 
