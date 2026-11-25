@@ -1,0 +1,35 @@
+menu "MO companion board"
+config MOBAN_LIMB_BUS
+    bool "Enable wired TCA9546A limb bus"
+    default n
+if MOBAN_LIMB_BUS
+config MOBAN_SDA
+    int "Limb SDA GPIO"
+    default -1
+config MOBAN_SCL
+    int "Limb SCL GPIO"
+    default -1
+config MOBAN_MUX_RESET
+    int "Active-low TCA9546A RESET GPIO"
+    default -1
+config MOBAN_MUX_ADDRESS
+    hex "TCA9546A 7-bit address"
+    range 0x70 0x77
+    default 0x70
+config MOBAN_SLOT_0_EN
+    int "CH0 slot power enable GPIO (-1 for externally powered)"
+    default -1
+config MOBAN_SLOT_1_EN
+    int "CH1 slot power enable GPIO (-1 for externally powered)"
+    default -1
+config MOBAN_SLOT_2_EN
+    int "CH2 slot power enable GPIO (-1 for externally powered)"
+    default -1
+config MOBAN_SLOT_3_EN
+    int "CH3 slot power enable GPIO (-1 for externally powered)"
+    default -1
+config MOBAN_SLOT_EN_LOW
+    bool "Slot power enable pins are active-low"
+    default n
+endif
+endmenu

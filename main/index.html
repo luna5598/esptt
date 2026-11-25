@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MO伴 · 温度课</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5ed;color:#233b36;font:16px/1.6 system-ui,"Microsoft YaHei",sans-serif}
+main{max-width:840px;margin:auto;padding:24px 18px}h1,h2,p{margin:0 0 12px}h1{font-size:32px}h2{font-size:20px}
+section{border:1px solid #cdd8cc;border-radius:12px;padding:20px;background:#fffef9;margin:14px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #dce3d8;padding:10px 0}
+small,#network{color:#4e655a}button,select{font:inherit;border:1px solid #76998a;border-radius:6px;padding:6px 12px}
+button{background:#235c4c;color:white}button:disabled{opacity:.45}#samples{overflow-wrap:anywhere}progress{accent-color:#28674f;width:100%}
+</style>
+<main><h1>MO伴温度课</h1><p id="network" role="status">正在连接设备</p>
+<section><h2>四肢槽位</h2><div id="slots"></div></section>
+<section><h2>温度记录</h2><p id="phase">等待设备</p><progress id="progress" value="0" max="10"></progress>
+<p id="samples"></p><label>采样位置 <select id="target"></select></label> <button id="action" disabled>开始记录</button>
+<p id="result" role="status"></p></section></main>
+<script>
+const el=id=>document.getElementById(id);
+const links={offline:'节点离线',empty:'未插配件',pending:'识别中',unsupported:'当前课程不支持此配件',foreign_binding:'节点会话不匹配，请复位该槽',bad_frame:'帧校验或身份错误',link_fault:'总线或节点故障',invalid_sample:'样本无效',unchanged:'等待新样本',sample:'温湿度'};
+const phases={idle:'待开始',running:'采样中',waiting:'配件已离开，等待确认',done:'已完成'};
+const reasons=['成功','槽位无效','设备已重启','配件已更换','槽位为空','没有新鲜读数','课程已改变','当前步骤无法执行','超出范围'];
+let state=null,online=false,busy=false;
+['左手','右手','左脚','右脚'].forEach((name,i)=>{
+  el('target').add(new Option(name,i));const row=document.createElement('div');row.className='row';
+  const label=document.createElement('b'),value=document.createElement('small');label.textContent=name;
+  row.append(label,value);el('slots').append(row);
+});
+function render(){
+  if(!state)return;
+  const {course:c,slots}=state;
+  slots.forEach((s,i)=>{el('slots').children[i].lastChild.textContent=s.fresh
+    ? (s.temp_centi/100).toFixed(2)+' °C　'+(s.humidity_centi/100).toFixed(1)+' %RH'
+    : (s.present&&s.temp_centi!==null?'读数已过期':links[s.status]);});
+  const i=Number(el('target').value), waiting=c.phase==='waiting';
+  el('phase').textContent=phases[c.phase]+'　'+c.samples.length+' / '+c.goal;
+  el('samples').textContent=c.samples.map(s=>(s.temp_centi/100).toFixed(2)+' °C').join(' · ');
+  el('progress').value=c.samples.length;el('action').textContent=waiting?'确认新模块并继续':'开始记录';
+  el('action').disabled=busy||!online||!slots[i].fresh||c.phase==='running'||(waiting&&i!==c.slot);
+}
+async function refresh(){
+  try{const r=await fetch('/api/state',{cache:'no-store'});if(!r.ok)throw Error();state=await r.json();online=true;
+    el('network').textContent=state.bus_ready?'设备已连接':'设备已连接，四肢总线尚未启用';}
+  catch{online=false;el('network').textContent='设备连接中断';}
+  render();
+}
+el('target').onchange=render;
+el('action').onclick=async()=>{
+  if(busy||!state||!online)return;busy=true;render();const c=state.course,i=Number(el('target').value);
+  const q=new URLSearchParams({boot:state.boot,slot:i,gen:state.slots[i].generation,run:c.run});
+  try{const r=await fetch('/api/'+(c.phase==='waiting'?'resume':'start')+'?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
+    const body=await r.json();el('result').textContent=r.ok?'已接受':(reasons[body.error]||'请求失败');}
+  catch{el('result').textContent='连接失败，请刷新确认课程状态';}
+  finally{await refresh();busy=false;render();}
+};
+(async function poll(){await refresh();setTimeout(poll,1000);})();
+</script></html>

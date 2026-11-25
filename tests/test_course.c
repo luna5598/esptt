@@ -22,6 +22,8 @@ int main(void)
     assert(mo_resume(42,0,3,2100,1)==MO_OK);
     for (unsigned k=0;k<9;k++) assert(mo_sample(42,0,3,3100u+1000u*k,2230,5310)==MO_OK);
     assert(mo_course()->phase==MO_DONE && mo_course()->count==10 && mo_course()->temp_centi[0]==2123);
+    mo_invalidate(0);
+    assert(mo_read(42,0,3,12000)==MO_NO_FRESH_DATA);
     mo_init(43);
     assert(mo_read(42,0,0,0)==MO_OLD_BOOT);
     return 0;

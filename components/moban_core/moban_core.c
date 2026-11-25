@@ -70,6 +70,11 @@ int mo_sample(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now,
     return MO_OK;
 }
 
+void mo_invalidate(uint32_t slot)
+{
+    if (slot < MO_SLOT_COUNT) slots[slot].has_sample = 0;
+}
+
 int mo_read(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now)
 {
     int rc = check_target(boot, slot, generation);

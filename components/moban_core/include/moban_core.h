@@ -29,6 +29,7 @@ void mo_init(uint64_t boot_id);
 int mo_presence(uint32_t slot, uint32_t present);
 int mo_sample(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now_ms,
               int32_t temp_centi, uint32_t humidity_centi);
+void mo_invalidate(uint32_t slot);
 int mo_read(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now_ms);
 int mo_start(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now_ms,
              uint32_t expected_run);
