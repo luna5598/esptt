@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22)
+project(moban_bench C)
+add_library(moban_core SHARED ../components/moban_core/moban_core.c)
+target_include_directories(moban_core PRIVATE ../components/moban_core/include)
+target_compile_features(moban_core PRIVATE c_std_11)
+set_target_properties(moban_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/library-$<CONFIG>.txt" CONTENT "$<TARGET_FILE:moban_core>")

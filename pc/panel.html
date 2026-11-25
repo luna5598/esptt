@@ -1,0 +1,19 @@
+<section><h2>电脑模拟台</h2><p>读数由电脑生成。可在采样中拔出所选模块，再插入并确认，观察课程如何恢复。</p>
+<button id="attach">插入温湿度模块</button> <button id="detach">拔出模块</button>
+<p id="bench-status" role="status"></p></section>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  for(const [id,present] of [['attach',1],['detach',0]]){
+    document.getElementById(id).onclick=async()=>{
+      if(!state||!online)return;
+      const slot=Number(el('target').value);
+      const q=new URLSearchParams({boot:state.boot,slot,gen:state.slots[slot].generation,present});
+      try{
+        const r=await fetch('/sim/presence?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
+        el('bench-status').textContent=r.ok?'槽位已更新':'槽位已变化，请重试';
+      }catch{el('bench-status').textContent='模拟台连接中断';}
+      await refresh();
+    };
+  }
+});
+</script>
