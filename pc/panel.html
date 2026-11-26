@@ -1,8 +1,14 @@
-<section><h2>电脑模拟台</h2><p>左手和右手默认装有虚拟温湿度模块。选择采样位置后，可以插拔模块，或改变该槽位的传感器响应。</p>
-<button id="attach">插入温湿度模块</button> <button id="detach">拔出模块</button>
-<p><label>传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
+<section><h2>电脑模拟台</h2><p>双手默认装有温湿度模块，左脚装有测距模块。选择采样位置后，可以插拔模块，或改变该槽位的传感器响应。</p>
+<button id="attach">插入温湿度模块</button> <button id="attach-range">插入测距模块</button> <button id="detach">拔出模块</button>
+<p><label>模拟距离（mm，0 表示无回波） <input id="mm" type="number" min="0" max="32767" value="100"></label>
+<button id="set-mm">移动目标</button></p>
+<p><label>温湿度传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
 <option value="2">无应答</option><option value="3">校验错误</option></select></label>
 <button id="apply-fault">应用到所选槽位</button></p>
+<p><label>模拟已识别口令 <select id="phrase"><option>开始测距</option><option>停止记录</option>
+<option>继续记录</option><option>开始测温</option></select></label> <button id="say">执行口令</button></p>
+<p><label>模拟实体按键 <select id="key"><option value="1">开始</option><option value="2">继续</option>
+<option value="3">停止</option></select></label> <button id="press">按下</button></p>
 <p id="bench-status" role="status"></p></section>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
@@ -12,11 +18,16 @@ document.addEventListener('DOMContentLoaded',()=>{
     const q=new URLSearchParams({boot:state.boot,slot,gen:state.slots[slot].generation,...params});
     try{
       const r=await fetch('/sim/'+path+'?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
-      el('bench-status').textContent=r.ok?'已更新'+state.slots[slot].name+'的模拟条件':'槽位已变化，请重试';
+      const body=await r.json();
+      el('bench-status').textContent=r.ok?'已应用到'+state.slots[slot].name:(reasons[body.error]||'输入无效');
     }catch{el('bench-status').textContent='模拟台连接中断';}
     await refresh();
   }
   el('attach').onclick=()=>update('presence',{present:1});
+  el('attach-range').onclick=()=>update('presence',{present:1,tip:2});
+  el('set-mm').onclick=()=>update('distance',{mm:el('mm').value});
+  el('say').onclick=()=>state&&update('voice',{run:state.course.run,phrase:el('phrase').value});
+  el('press').onclick=()=>state&&update('button',{run:state.course.run,key:el('key').value});
   el('detach').onclick=()=>update('presence',{present:0});
   el('apply-fault').onclick=()=>update('fault',{mode:el('fault-mode').value});
 });

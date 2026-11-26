@@ -13,8 +13,15 @@ enum {
     LIMB_ADDRESS = 0x2a, LIMB_INFO_BYTES = 12, LIMB_SAMPLE_BYTES = 16,
     LIMB_ACK_BYTES = 11, LIMB_BIND_FRAME_BYTES = 8, LIMB_CMD_FRAME_BYTES = 14,
     LIMB_PRESENT = 1, LIMB_READY = 2, LIMB_BOUND = 4,
-    LIMB_TEMP_HUM = 2, LIMB_TEMP_HUM_CAP = 1 << 1,
+    LIMB_TEMP_HUM = 2, LIMB_DISTANCE = 3, LIMB_TEMP_HUM_CAP = 1 << 1, LIMB_DISTANCE_CAP = 1 << 2,
 };
+static inline uint16_t limb_sensor_cap(uint8_t type)
+{
+    if (type == LIMB_TEMP_HUM) return LIMB_TEMP_HUM_CAP;
+    if (type == LIMB_DISTANCE) return LIMB_DISTANCE_CAP;
+    return 0;
+}
+
 typedef struct {
     uint8_t type, flags, fault, firmware;
     uint16_t capabilities, tip_gen;

@@ -51,7 +51,7 @@ static bool read_sensor(void *ctx, uint8_t addr, uint8_t *p, size_t n)
     return true;
 }
 
-static const tip_id_band bands[] = {{791, 951, LIMB_TEMP_HUM}, {1200, 1320, 3}};
+static const tip_id_band bands[] = {{791, 951, LIMB_TEMP_HUM}, {1200, 1320, 4}};
 static const tip_id_profile profile = {bands, 2, 3950, 4095};
 
 static void tick(tip_acquisition *s, uint32_t ms, uint16_t adc)
@@ -92,7 +92,7 @@ static void test_id_and_power(void)
     tick(&s, 151, 1200);
     tick(&s, 161, 1320);
     tick(&s, 171, 1320);
-    assert(s.node.type == 3 && !f.power && f.power_ons == 1);
+    assert(s.node.type == 4 && !f.power && f.power_ons == 1);
     tick(&s, 181, 3950);
     assert(!s.node.type);
     static const tip_id_band overlap[] = {{1, 20, 2}, {20, 30, 3}};

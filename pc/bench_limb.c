@@ -11,6 +11,8 @@ typedef struct {
     enum sensor_fault fault;
     bool seated, detached, powered, calibrated, triggered;
     uint32_t clock, trigger_ms;
+    uint32_t ranged_ms;
+    uint16_t tip_adc, distance_mm;
     int temperature, humidity;
     uint8_t frame[7];
 } bench_slot;
@@ -18,7 +20,8 @@ typedef struct {
 static bench_slot slots[MO_SLOT_COUNT];
 static uint64_t bench_boot;
 static uint32_t session_counter;
-static const tip_id_band temp_band = {791, 951, LIMB_TEMP_HUM}; /* PC fixture only. */
+/* PC fixture counts. Calibrate the physical board separately. */
+static const tip_id_band id_bands[] = {{791,951,LIMB_TEMP_HUM}, {1150,1310,LIMB_DISTANCE}};
 
 static void power(void *ctx, bool on)
 {
@@ -104,12 +107,14 @@ bool bench_init(uint64_t boot)
     bench_boot = boot;
     session_counter = 0;
     mo_init(boot);
-    const tip_id_profile profile = {&temp_band, 1, 3950, 4095};
+    const tip_id_profile profile = {id_bands, 2, 3950, 4095};
     for (unsigned i = 0; i < MO_SLOT_COUNT; i++) {
         bench_slot *s = &slots[i];
         tip_io io = {s, power, sensor_read, sensor_write};
         if (!tip_acquisition_init(&s->tip, profile, io)) return false;
-        s->seated = i < 2;
+        s->seated = i < 3;
+        s->tip_adc = i == 2 ? 1230 : 871;
+        s->distance_mm = 300;
     }
     return true;
 }
@@ -119,6 +124,20 @@ void bench_contact(unsigned slot, bool present)
     bench_slot *s = &slots[slot];
     if (s->seated && !present) s->detached = true;
     s->seated = present;
+}
+
+void bench_attach(unsigned slot, bool distance)
+{
+    bench_slot *s = &slots[slot];
+    uint16_t adc = distance ? 1230 : 871;
+    if (s->seated && adc != s->tip_adc) s->detached = true;
+    s->tip_adc = adc;
+    s->seated = true;
+}
+
+void bench_distance(unsigned slot, unsigned mm)
+{
+    slots[slot].distance_mm = (uint16_t)mm;
 }
 
 void bench_fault(unsigned slot, unsigned fault)
@@ -132,8 +151,13 @@ void bench_tick(unsigned slot, uint64_t now, int temp, int humidity)
     s->clock = (uint32_t)now;
     s->temperature = temp;
     s->humidity = humidity;
-    tip_acquisition_tick(&s->tip, s->clock, s->seated, s->detached, s->seated ? 871 : 4095);
+    tip_acquisition_tick(&s->tip, s->clock, s->seated, s->detached, s->seated ? s->tip_adc : 4095);
     s->detached = false;
+    if (s->powered && s->tip.node.type == LIMB_DISTANCE && s->clock - s->ranged_ms >= 100) {
+        s->ranged_ms = s->clock;
+        limb_node_receive_range(&s->tip.node, s->tip.node.generation, s->distance_mm,
+                                s->distance_mm != 0, 0);
+    }
     limb_transport transport = {s, node_read, node_write};
     session_counter++;
     if (!session_counter) session_counter = 1;

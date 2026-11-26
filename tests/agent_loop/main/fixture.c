@@ -132,11 +132,14 @@ void app_main(void)
     state.bus_ready = true;
     state.status[1] = LIMB_EMPTY_SLOT;
     check_read("{\"slot\":1}", "empty", false);
-    state.slots[0] = (mo_slot_view){.present=1, .generation=5, .has_sample=1,
+    state.slots[0] = (mo_slot_view){.tip=MO_THERMOMETER, .present=1, .generation=5, .has_sample=1,
         .temp_centi=2137, .humidity_centi=4830, .sampled_ms=15};
     state.now = 15 + MO_FRESH_MS + 1;
     check_read("{\"slot\":0}", "stale", false);
     state.now--;
+    state.slots[0].tip = MO_RANGEFINDER;
+    check_read("{\"slot\":0}", "unsupported", false);
+    state.slots[0].tip = MO_THERMOMETER;
     check_read("{\"slot\":0}", "ok", true);
     char *answer = NULL;
     check_http_question();

@@ -6,7 +6,7 @@
 typedef struct {
     uint32_t session;
     uint16_t generation, sequence, age_ms;
-    int16_t temperature, humidity;
+    int16_t temperature, humidity, distance_mm;
     uint8_t type, sample_flags;
     bool probing;
 } temperature_node;
@@ -23,6 +23,11 @@ void temperature_node_advance(temperature_node *node, uint32_t elapsed_ms);
  * AHT20 response (status, humidity, temperature, CRC) at completion. */
 bool temperature_node_receive_aht20(temperature_node *node, uint16_t generation,
                                    const uint8_t *frame, size_t length);
+
+/* Publish one completed ToF transaction with its measured age. A sensor
+ * quality failure is a completed transaction with valid=false. */
+bool limb_node_receive_range(temperature_node *node, uint16_t generation, uint16_t mm,
+                             bool valid, uint16_t age_ms);
 
 /* Read one register snapshot for a pointer write followed by repeated START.
  * Deliver a complete BIND or RELEASE transaction after STOP. */

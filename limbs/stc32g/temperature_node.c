@@ -55,6 +55,18 @@ bool temperature_node_receive_aht20(temperature_node *node, uint16_t generation,
     return node->sample_flags == 1u;
 }
 
+bool limb_node_receive_range(temperature_node *node, uint16_t gen, uint16_t mm, bool valid,
+                             uint16_t age_ms)
+{
+    if (node->type != LIMB_DISTANCE || node->generation != gen) return false;
+    node->probing = false;
+    node->sample_flags = valid && mm && mm <= INT16_MAX ? 1 : 2;
+    node->distance_mm = node->sample_flags == 1 ? (int16_t)mm : 0;
+    node->sequence++;
+    node->age_ms = age_ms;
+    return node->sample_flags == 1;
+}
+
 bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *data, size_t length)
 {
     size_t expected;
@@ -73,9 +85,9 @@ bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *d
         data[2] = 1;
         data[3] = node->type;
         if (node->type) data[4] |= LIMB_PRESENT;
-        if (node->type == LIMB_TEMP_HUM) {
+        if (limb_sensor_cap(node->type)) {
             if (!node->probing) data[4] |= LIMB_READY;
-            limb_put16(data + 5, LIMB_TEMP_HUM_CAP);
+            limb_put16(data + 5, limb_sensor_cap(node->type));
         }
         if (node->session) data[4] |= LIMB_BOUND;
         limb_put16(data + 7, node->generation);
@@ -90,7 +102,7 @@ bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *d
         limb_put16(data + 2, node->sequence);
         data[4] = node->sample_flags;
         data[5] = node->type;
-        limb_put16(data + 6, (uint16_t)node->temperature);
+        limb_put16(data + 6, (uint16_t)(node->type == LIMB_DISTANCE ? node->distance_mm : node->temperature));
         limb_put16(data + 8, (uint16_t)node->humidity);
         limb_put16(data + 10, node->age_ms);
         break;
@@ -112,7 +124,7 @@ bool temperature_node_write(temperature_node *node, const uint8_t *frame, size_t
         node->session = 0;
         return true;
     }
-    if (node->type != LIMB_TEMP_HUM || node->probing) return false;
+    if (!limb_sensor_cap(node->type) || node->probing) return false;
     node->session = session;
     return true;
 }
