@@ -74,7 +74,7 @@ bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *d
         data[3] = node->type;
         if (node->type) data[4] |= LIMB_PRESENT;
         if (node->type == LIMB_TEMP_HUM) {
-            data[4] |= LIMB_READY;
+            if (!node->probing) data[4] |= LIMB_READY;
             limb_put16(data + 5, LIMB_TEMP_HUM_CAP);
         }
         if (node->session) data[4] |= LIMB_BOUND;
@@ -112,7 +112,7 @@ bool temperature_node_write(temperature_node *node, const uint8_t *frame, size_t
         node->session = 0;
         return true;
     }
-    if (node->type != LIMB_TEMP_HUM) return false;
+    if (node->type != LIMB_TEMP_HUM || node->probing) return false;
     node->session = session;
     return true;
 }

@@ -6,6 +6,7 @@
 #include <string.h>
 #include "esp_http_server.h"
 #include "runtime.h"
+#include "slot_observation.h"
 #include "agent_network.h"
 #include "esp_netif.h"
 #include "lwip/sockets.h"
@@ -14,8 +15,6 @@ esp_err_t agent_web_ask(httpd_req_t *req);
 
 extern const char page_start[] asm("_binary_index_html_start");
 static const char *const slot_names[] = {"左手","右手","左脚","右脚"};
-static const char *const link_names[] = {"offline","empty","pending","unsupported",
-    "foreign_binding","bad_frame","link_fault","invalid_sample","unchanged","sample"};
 static const char *const phases[] = {"idle","running","waiting","done"};
 
 static esp_err_t index_page(httpd_req_t *req)
@@ -43,7 +42,7 @@ static esp_err_t send_state(httpd_req_t *req)
         snprintf(part,sizeof(part),
                  "%s{\"name\":\"%s\",\"generation\":%" PRIu32 ",\"status\":\"%s\","
                  "\"present\":%s,\"fresh\":%s,\"temp_centi\":%s}",
-                 i?",":"",slot_names[i],v->generation,link_names[s.status[i]],
+                 i?",":"",slot_names[i],v->generation,mo_link_name(s.status[i]),
                  v->present?"true":"false",fresh?"true":"false",values);
         if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     }

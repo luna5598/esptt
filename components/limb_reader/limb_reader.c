@@ -15,7 +15,7 @@ limb_poll_result limb_poll(limb_reader *r, const limb_transport *io, uint32_t ne
         *r = (limb_reader){0};
         if (info.fault) out.result = LIMB_LINK_FAULT;
         else if (!(info.flags & LIMB_PRESENT)) out.result = LIMB_EMPTY_SLOT;
-        else if (!(info.flags & LIMB_READY)) out.result = LIMB_PENDING;
+        else if (info.type == LIMB_TEMP_HUM && !(info.flags & LIMB_READY)) out.result = LIMB_PENDING;
         else out.result = LIMB_UNSUPPORTED;
         return out;
     }

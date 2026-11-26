@@ -1,4 +1,4 @@
-"""Build and load the same course implementation used by the S31 firmware."""
+"""Build and load the four-node bench and the shared S31 course implementation."""
 import ctypes as c
 from pathlib import Path
 import subprocess
@@ -29,9 +29,11 @@ def load():
     path = (BUILD / "library-Release.txt").read_text(encoding="utf-8")
     library = c.CDLL(path)
     signatures = {
-        "mo_init": ([B], None), "mo_presence": ([U, U], I),
+        "bench_init": ([B], c.c_bool), "bench_contact": ([U, c.c_bool], None),
+        "bench_fault": ([U, U], None), "bench_status": ([U], c.c_char_p),
+        "bench_tick": ([U, B, c.c_int, c.c_int], None),
         "mo_slot": ([U], c.POINTER(Slot)), "mo_course": ([], c.POINTER(Course)),
-        "mo_sample": ([B, U, U, B, I, U], I), "mo_read": ([B, U, U, B], I),
+        "mo_read": ([B, U, U, B], I),
         "mo_start": ([B, U, U, B, U], I), "mo_resume": ([B, U, U, B, U], I),
     }
     for name, (args, result) in signatures.items():

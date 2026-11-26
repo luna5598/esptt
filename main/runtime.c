@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "runtime.h"
+#include "slot_observation.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -30,19 +31,8 @@ void device_bus_ready(void)
 void device_observe(unsigned slot, const limb_poll_result *poll)
 {
     xSemaphoreTake(lock, portMAX_DELAY);
-    uint64_t now = now_ms();
-    if (poll->replaced) mo_presence(slot, 0);
-    bool present = poll->result == LIMB_NEW_SAMPLE || poll->result == LIMB_UNCHANGED ||
-                   poll->result == LIMB_NO_SAMPLE;
-    mo_presence(slot, present);
+    mo_observe_slot(boot, slot, now_ms(), poll);
     status[slot] = poll->result;
-    if (poll->result == LIMB_NO_SAMPLE ||
-        (poll->result == LIMB_NEW_SAMPLE && (now < poll->sample.age_ms || poll->sample.age_ms > MO_FRESH_MS))) {
-        mo_invalidate(slot);
-    } else if (poll->result == LIMB_NEW_SAMPLE) {
-        mo_sample(boot, slot, mo_slot(slot)->generation, now - poll->sample.age_ms,
-                  poll->sample.a, (uint32_t)poll->sample.b);
-    }
     xSemaphoreGive(lock);
 }
 

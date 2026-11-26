@@ -8,6 +8,7 @@ typedef struct {
     uint16_t generation, sequence, age_ms;
     int16_t temperature, humidity;
     uint8_t type, sample_flags;
+    bool probing;
 } temperature_node;
 
 /* Zero-initialize at reset. Serialize these operations with register snapshots.
