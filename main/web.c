@@ -6,6 +6,11 @@
 #include <string.h>
 #include "esp_http_server.h"
 #include "runtime.h"
+#include "agent_network.h"
+#include "esp_netif.h"
+#include "lwip/sockets.h"
+
+esp_err_t agent_web_ask(httpd_req_t *req);
 
 extern const char page_start[] asm("_binary_index_html_start");
 static const char *const slot_names[] = {"左手","右手","左脚","右脚"};
@@ -26,12 +31,12 @@ static esp_err_t send_state(httpd_req_t *req)
     char part[320];
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    snprintf(part,sizeof(part),"{\"boot\":\"%016" PRIx64 "\",\"bus_ready\":%s,\"slots\":[",
-             s.boot,s.bus_ready?"true":"false");
+    snprintf(part,sizeof(part),"{\"boot\":\"%016" PRIx64 "\",\"bus_ready\":%s,\"agent_enabled\":%s,\"slots\":[",
+             s.boot,s.bus_ready?"true":"false",agent_network_configured()?"true":"false");
     if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     for (unsigned i=0;i<MO_SLOT_COUNT;i++) {
         const mo_slot_view *v=&s.slots[i];
-        bool fresh=v->has_sample && s.now >= v->sampled_ms && s.now-v->sampled_ms<=MO_FRESH_MS;
+        bool fresh=mo_sample_fresh(v, s.now);
         char values[96]="null,\"humidity_centi\":null";
         if (v->has_sample) snprintf(values,sizeof(values),"%" PRId32 ",\"humidity_centi\":%" PRIu32,
                                     v->temp_centi,v->humidity_centi);
@@ -96,10 +101,16 @@ esp_err_t web_start(void)
     const httpd_uri_t routes[] = {
         {.uri="/", .method=HTTP_GET, .handler=index_page},
         {.uri="/api/state", .method=HTTP_GET, .handler=send_state},
+        {.uri="/api/ask", .method=HTTP_POST, .handler=agent_web_ask},
         {.uri="/api/start", .method=HTTP_POST, .handler=course_action},
         {.uri="/api/resume", .method=HTTP_POST, .handler=course_action, .user_ctx=(void*)resume_tag}
     };
     httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();
+    static struct ifreq ap_interface;
+    esp_netif_t *ap = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (!ap || esp_netif_get_netif_impl_name(ap, ap_interface.ifr_name) != ESP_OK)
+        return ESP_ERR_INVALID_STATE;
+    cfg.if_name = &ap_interface;
     cfg.stack_size=6144;
     cfg.lru_purge_enable=true;
     httpd_handle_t server;

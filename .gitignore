@@ -4,3 +4,8 @@
 /sdkconfig.old
 /managed_components/
 __pycache__/
+dependencies.lock
+/tests/agent_loop/managed_components/
+/tests/agent_loop/build/
+/tests/agent_loop/sdkconfig
+/tests/agent_loop/sdkconfig.old
