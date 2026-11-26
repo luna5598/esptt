@@ -39,7 +39,7 @@ static uint8_t classify(const tip_id_profile *profile, uint16_t adc)
 
 static void retire(tip_acquisition *s)
 {
-    if (s->phase != AHT_OFF) s->io.power(s->io.ctx, false);
+    if (limb_sensor_cap(s->node.type)) s->io.power(s->io.ctx, false);
     s->phase = AHT_OFF;
     s->votes = 0;
     temperature_node_set_tip(&s->node, 0);
@@ -55,12 +55,14 @@ static void qualify(tip_acquisition *s, uint8_t type, uint32_t now)
     if (++s->votes < ID_VOTES) return;
     s->votes = 0;
     temperature_node_set_tip(&s->node, type);
-    if (type == LIMB_TEMP_HUM) {
+    if (limb_sensor_cap(type)) {
         s->node.probing = true;
+        s->io.power(s->io.ctx, true);
+    }
+    if (type == LIMB_TEMP_HUM) {
         s->init_sent = false;
         s->phase = AHT_PROBE;
         s->phase_start = s->last_io = now;
-        s->io.power(s->io.ctx, true);
     }
 }
 

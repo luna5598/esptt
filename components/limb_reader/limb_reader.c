@@ -10,12 +10,13 @@ limb_poll_result limb_poll(limb_reader *r, const limb_transport *io, uint32_t ne
         out.result = LIMB_BAD_FRAME;
         return out;
     }
+    uint16_t cap = limb_sensor_cap(info.type);
     if ((info.flags & (LIMB_PRESENT | LIMB_READY)) != (LIMB_PRESENT | LIMB_READY) ||
-        info.fault || info.type != LIMB_TEMP_HUM || !(info.capabilities & LIMB_TEMP_HUM_CAP)) {
+        info.fault || !(info.capabilities & cap)) {
         *r = (limb_reader){0};
         if (info.fault) out.result = LIMB_LINK_FAULT;
         else if (!(info.flags & LIMB_PRESENT)) out.result = LIMB_EMPTY_SLOT;
-        else if (info.type == LIMB_TEMP_HUM && !(info.flags & LIMB_READY)) out.result = LIMB_PENDING;
+        else if (cap && !(info.flags & LIMB_READY)) out.result = LIMB_PENDING;
         else out.result = LIMB_UNSUPPORTED;
         return out;
     }
@@ -50,7 +51,9 @@ limb_poll_result limb_poll(limb_reader *r, const limb_transport *io, uint32_t ne
         out.result = LIMB_BAD_FRAME;
         return out;
     }
-    if ((s->flags & 3u) != 1 || s->a < -4000 || s->a > 8500 || s->b < 0 || s->b > 10000) {
+    bool in_range = s->type == LIMB_DISTANCE ? (s->a > 0 && s->b == 0) :
+                    (s->a >= -4000 && s->a <= 8500 && s->b >= 0 && s->b <= 10000);
+    if ((s->flags & 3u) != 1 || !in_range) {
         out.result = LIMB_NO_SAMPLE;
         return out;
     }

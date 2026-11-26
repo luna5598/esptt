@@ -43,6 +43,7 @@ void device_snapshot_read(device_snapshot *out)
     out->now = now_ms();
     out->bus_ready = bus_ready;
     out->course = *mo_course();
+    out->elapsed_ms = mo_elapsed_ms(out->now);
     for (unsigned i = 0; i < MO_SLOT_COUNT; i++) {
         out->slots[i] = *mo_slot(i);
         out->status[i] = status[i];
@@ -50,10 +51,10 @@ void device_snapshot_read(device_snapshot *out)
     xSemaphoreGive(lock);
 }
 
-int device_course_action(bool resume, uint64_t requested_boot, unsigned slot, uint32_t gen, uint32_t run)
+int device_course_action(enum mo_action action, uint64_t requested_boot, unsigned slot, uint32_t gen, uint32_t run)
 {
     xSemaphoreTake(lock, portMAX_DELAY);
-    int rc = (resume ? mo_resume : mo_start)(requested_boot, slot, gen, now_ms(), run);
+    int rc = mo_dispatch(action, requested_boot, slot, gen, now_ms(), run);
     xSemaphoreGive(lock);
     return rc;
 }

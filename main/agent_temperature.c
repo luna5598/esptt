@@ -64,12 +64,13 @@ static esp_err_t read_temperature(const char *input, const claw_cap_call_context
     device_snapshot snapshot;
     device_snapshot_read(&snapshot);
     const mo_slot_view *v = &snapshot.slots[i];
-    bool fresh = snapshot.bus_ready && mo_sample_fresh(v, snapshot.now);
+    bool fresh = v->tip == MO_THERMOMETER && snapshot.bus_ready && mo_sample_fresh(v, snapshot.now);
     const char *status = "ok";
     if (!snapshot.bus_ready) status = "bus_offline";
     else if (snapshot.status[i] == LIMB_EMPTY_SLOT) status = "empty";
     else if (snapshot.status[i] == LIMB_UNSUPPORTED) status = "unsupported";
     else if (!v->present) status = "unavailable";
+    else if (v->tip != MO_THERMOMETER) status = "unsupported";
     else if (!v->has_sample) status = "no_sample";
     else if (!fresh) status = "stale";
 

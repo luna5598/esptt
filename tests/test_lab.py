@@ -50,6 +50,44 @@ class TemperatureLab(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, state)
             time.sleep(0.05)
 
+    def test_distance_lesson_with_local_inputs(self):
+        state = self.wait_slot(2, lambda s: s["fresh"])
+        slot = dict(boot=state["boot"], slot=2, gen=state["slots"][2]["generation"])
+        self.assertIsNone(state["slots"][2]["temp_centi"])
+        for unsupported in ("未知指令", "开始测距\x00无效"):
+            self.assertEqual(self.post("/sim/voice", **slot, phrase=unsupported, run=0)[0], 400)
+        self.assertEqual(self.post("/sim/voice", **slot, phrase="开始测距", run=0)[0], 200)
+        self.assertEqual(self.post("/sim/distance", **slot, mm=100)[0], 200)
+        deadline = time.monotonic() + 4
+        while not self.state()["course"]["events"]:
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(0.05)
+        course = self.state()["course"]
+        self.assertTrue(course["timer_paused"])
+        self.assertEqual(course["samples"][0]["distance_mm"], 100)
+        self.assertEqual(self.post("/sim/distance", **slot, mm=0)[0], 200)
+        invalid = self.wait_slot(2, lambda s: not s["fresh"])
+        self.assertIsNone(invalid["slots"][2]["distance_mm"])
+        self.assertTrue(invalid["slots"][0]["fresh"])
+        self.assertEqual(self.post("/sim/presence", **slot, present=0)[0], 200)
+        paused = self.state()
+        self.assertEqual(paused["course"]["phase"], "waiting")
+        new = dict(slot, gen=paused["slots"][2]["generation"])
+        self.assertEqual(self.post("/sim/presence", **new, present=1, tip=1)[0], 200)
+        wrong = self.wait_slot(2, lambda s: s["fresh"] and s["tip"] == 1)
+        new["gen"] = wrong["slots"][2]["generation"]
+        self.assertEqual(self.post("/sim/button", **new, key=2, run=1), (409, {"error": 9}))
+        self.assertEqual(self.post("/sim/presence", **new, present=1, tip=2)[0], 200)
+        identified = self.wait_slot(2, lambda s: s["tip"] == 2)
+        new["gen"] = identified["slots"][2]["generation"]
+        self.assertEqual(self.post("/sim/distance", **new, mm=300)[0], 200)
+        self.wait_slot(2, lambda s: s["fresh"])
+        self.assertEqual(self.post("/api/action", **slot, action=3, run=1), (409, {"error": 3}))
+        self.assertEqual(self.post("/sim/button", **new, key=2, run=1)[0], 200)
+        self.assertEqual(self.post("/sim/voice", **new, phrase="停止记录", run=1)[0], 200)
+        stopped = self.state()["course"]
+        self.assertEqual((stopped["phase"], stopped["events"]), ("stopped", 1))
+
     def test_single_sensor_faults_and_recovery(self):
         initial = self.wait_slot(0, lambda s: s["fresh"])
         left = dict(boot=initial["boot"], slot=0, gen=initial["slots"][0]["generation"])

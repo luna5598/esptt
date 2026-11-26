@@ -1,4 +1,4 @@
-"""Run a loopback-only temperature lab using Python, CMake and a native C compiler."""
+"""Run a loopback-only sensor lab using Python, CMake and a native C compiler."""
 import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -44,12 +44,16 @@ class Bench:
             slots.append(dict(name=name, generation=s.generation, present=bool(s.present),
                               status=self.core.bench_status(i).decode("ascii"),
                               fresh=self.core.mo_read(self.boot, i, s.generation, now) == 0,
-                              temp_centi=s.temp if s.has_sample else None,
-                              humidity_centi=s.humidity if s.has_sample else None))
+                              tip=s.tip, distance_mm=s.distance if s.has_sample and s.tip == 2 else None,
+                              temp_centi=s.temp if s.has_sample and s.tip == 1 else None,
+                              humidity_centi=s.humidity if s.has_sample and s.tip == 1 else None))
         c = self.core.mo_course().contents
-        samples = [dict(ms=c.times[i], temp_centi=c.temps[i]) for i in range(c.count)]
+        field = "distance_mm" if c.tip == 2 else "temp_centi"
+        samples = [{"ms": c.times[i], field: c.values[i]} for i in range(c.count)]
         return dict(boot=f"{self.boot:016x}", bus_ready=True, slots=slots,
-                    course=dict(run=c.run, phase=PHASES[c.phase], slot=c.slot, goal=10, samples=samples))
+                    course=dict(run=c.run, phase=PHASES[c.phase], slot=c.slot, goal=10, samples=samples,
+                                tip=c.tip, events=c.events, timer_paused=bool(c.paused),
+                                elapsed_ms=self.core.mo_elapsed_ms(now)))
 
     def action(self, path, query):
         def number(name, pattern, limit, base=10):
@@ -65,21 +69,43 @@ class Bench:
         idx = number("slot", r"[0-9]", len(LABELS) - 1)
         gen = number("gen", r"[0-9]{1,10}", UINT32_MAX)
         now = self.now()
-        if path.startswith("/sim/"):
+        if path in ("/sim/presence", "/sim/distance", "/sim/fault"):
             slot = self.core.mo_slot(idx).contents
             if boot != self.boot:
                 return 2
             if gen != slot.generation:
                 return 3
             if path == "/sim/presence":
-                self.core.bench_contact(idx, number("present", "[01]", 1))
+                if number("present", "[01]", 1):
+                    kind = number("tip", "[12]", 2) if "tip" in query else 1
+                    self.core.bench_attach(idx, kind == 2)
+                else:
+                    self.core.bench_contact(idx, False)
+            elif path == "/sim/distance":
+                if slot.tip != 2:
+                    return 9
+                self.core.bench_distance(idx, number("mm", r"[0-9]{1,5}", 32767))
             else:
+                if slot.tip == 2:
+                    return 9
                 self.core.bench_fault(idx, number("mode", "[0-3]", 3))
             self.tick()
             return 0
         run = number("run", r"[0-9]{1,10}", UINT32_MAX)
-        action = self.core.mo_start if path == "/api/start" else self.core.mo_resume
-        return action(boot, idx, gen, now, run)
+        if path == "/sim/voice":
+            phrases = query.get("phrase", [])
+            if len(phrases) != 1 or "\x00" in phrases[0]:
+                raise ValueError
+            action = self.core.mo_phrase_action(phrases[0].encode())
+        elif path == "/sim/button":
+            action = self.core.mo_button_action(number("key", "[1-3]", 3), idx)
+        elif path == "/api/action":
+            action = number("action", "[1-4]", 4)
+        else:
+            action = 1 if path == "/api/start" else 3
+        if not action:
+            raise ValueError
+        return self.core.mo_dispatch(action, boot, idx, gen, now, run)
 
 
 class BenchServer(ThreadingHTTPServer):
@@ -113,7 +139,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         req = urlsplit(self.path)
-        if req.path not in ("/api/start", "/api/resume", "/sim/presence", "/sim/fault"):
+        if req.path not in ("/api/start", "/api/resume", "/api/action", "/sim/presence", "/sim/fault",
+                            "/sim/distance", "/sim/button", "/sim/voice"):
             return self.send_error(404)
         host = self.headers.get("Host")
         if (self.headers.get("X-MOBan-UI") != "1" or

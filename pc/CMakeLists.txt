@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 project(moban_bench C)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 add_library(moban_core SHARED bench_limb.c ../main/slot_observation.c
     ../components/moban_core/moban_core.c ../components/limb_reader/limb_reader.c
     ../limbs/stc32g/tip_acquisition.c ../limbs/stc32g/temperature_node.c)

@@ -96,9 +96,31 @@ static void check_two_slots(void)
     assert(nodes[1].session == 101);
 }
 
+static void check_range_node(void)
+{
+    temperature_node node = {0};
+    limb_reader reader = {0};
+    limb_transport io = {.ctx=&node, .read=read_node, .write=write_node};
+    temperature_node_set_tip(&node, LIMB_DISTANCE);
+    node.probing = true;
+    assert(limb_poll(&reader, &io, 10).result == LIMB_PENDING);
+    assert(!limb_node_receive_range(&node, node.generation-1, 100, true, 0));
+    assert(!limb_node_receive_range(&node, node.generation, 65535, true, 0));
+    assert(limb_poll(&reader, &io, 10).result == LIMB_NO_SAMPLE);
+    assert(limb_node_receive_range(&node, node.generation, 111, true, 7));
+    limb_poll_result poll = limb_poll(&reader, &io, 10);
+    assert(poll.result == LIMB_NEW_SAMPLE && poll.sample.a == 111 && poll.sample.b == 0);
+    assert(poll.sample.age_ms == 7 && poll.sample.type == LIMB_DISTANCE);
+    assert(!limb_node_receive_range(&node, node.generation, 111, false, 0));
+    assert(limb_poll(&reader, &io, 10).result == LIMB_NO_SAMPLE);
+    temperature_node_set_tip(&node, LIMB_TEMP_HUM);
+    assert(!limb_node_receive_range(&node, node.generation-1, 123, true, 0));
+}
+
 int main(void)
 {
     check_binding_and_measurement();
     check_two_slots();
+    check_range_node();
     return 0;
 }

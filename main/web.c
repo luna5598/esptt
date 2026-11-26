@@ -15,7 +15,7 @@ esp_err_t agent_web_ask(httpd_req_t *req);
 
 extern const char page_start[] asm("_binary_index_html_start");
 static const char *const slot_names[] = {"左手","右手","左脚","右脚"};
-static const char *const phases[] = {"idle","running","waiting","done"};
+static const char *const phases[] = {"idle","running","waiting","done","stopped"};
 
 static esp_err_t index_page(httpd_req_t *req)
 {
@@ -36,23 +36,33 @@ static esp_err_t send_state(httpd_req_t *req)
     for (unsigned i=0;i<MO_SLOT_COUNT;i++) {
         const mo_slot_view *v=&s.slots[i];
         bool fresh=mo_sample_fresh(v, s.now);
-        char values[96]="null,\"humidity_centi\":null";
-        if (v->has_sample) snprintf(values,sizeof(values),"%" PRId32 ",\"humidity_centi\":%" PRIu32,
-                                    v->temp_centi,v->humidity_centi);
+        char temp[16]="null", humidity[16]="null", distance[16]="null";
+        if (v->has_sample && v->tip == MO_THERMOMETER) {
+            snprintf(temp,sizeof(temp),"%" PRId32,v->temp_centi);
+            snprintf(humidity,sizeof(humidity),"%" PRIu32,v->humidity_centi);
+        } else if (v->has_sample && v->tip == MO_RANGEFINDER) {
+            snprintf(distance,sizeof(distance),"%" PRId32,v->distance_mm);
+        }
         snprintf(part,sizeof(part),
                  "%s{\"name\":\"%s\",\"generation\":%" PRIu32 ",\"status\":\"%s\","
-                 "\"present\":%s,\"fresh\":%s,\"temp_centi\":%s}",
+                 "\"present\":%s,\"fresh\":%s,\"tip\":%" PRIu32 ",\"temp_centi\":%s,"
+                 "\"humidity_centi\":%s,\"distance_mm\":%s}",
                  i?",":"",slot_names[i],v->generation,mo_link_name(s.status[i]),
-                 v->present?"true":"false",fresh?"true":"false",values);
+                 v->present?"true":"false",fresh?"true":"false",v->tip,temp,humidity,distance);
         if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     }
     const mo_course_view *c=&s.course;
     snprintf(part,sizeof(part),"],\"course\":{\"run\":%" PRIu32 ",\"phase\":\"%s\","
-             "\"slot\":%" PRIu32 ",\"goal\":%u,\"samples\":[",c->run_id,phases[c->phase],c->slot,MO_GOAL);
+             "\"slot\":%" PRIu32 ",\"goal\":%u,\"tip\":%" PRIu32 ",\"events\":%" PRIu32
+             ",\"timer_paused\":%s,\"elapsed_ms\":%" PRIu64 ",\"samples\":[",
+             c->run_id,phases[c->phase],c->slot,MO_GOAL,c->tip,c->events,
+             c->timer_paused?"true":"false",s.elapsed_ms);
     if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     for (uint32_t i=0;i<c->count;i++) {
-        snprintf(part,sizeof(part),"%s{\"ms\":%" PRIu64 ",\"temp_centi\":%" PRId32 "}",
-                 i?",":"",c->time_ms[i],c->temp_centi[i]);
+        bool range = c->tip == MO_RANGEFINDER;
+        snprintf(part,sizeof(part),"%s{\"ms\":%" PRIu64 ",\"%s\":%" PRId32 "}",
+                 i?",":"",c->time_ms[i],range?"distance_mm":"temp_centi",
+                 range?c->distance_mm[i]:c->temp_centi[i]);
         if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     }
     if (httpd_resp_sendstr_chunk(req,"]}}")!=ESP_OK) return ESP_FAIL;
@@ -85,7 +95,10 @@ static esp_err_t course_action(httpd_req_t *req)
         !number(query,"boot",16,UINT64_MAX,&boot) || !number(query,"slot",10,MO_SLOT_COUNT-1,&slot) ||
         !number(query,"gen",10,UINT32_MAX,&generation) || !number(query,"run",10,UINT32_MAX,&run))
         return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Invalid target");
-    int rc=device_course_action(req->user_ctx!=NULL,boot,(unsigned)slot,(uint32_t)generation,(uint32_t)run);
+    uint64_t action = (uintptr_t)req->user_ctx;
+    if (!action && (!number(query,"action",10,MO_STOP_COURSE,&action) || action < MO_START_TEMP))
+        return httpd_resp_send_err(req,HTTPD_400_BAD_REQUEST,"Unknown action");
+    int rc=device_course_action((enum mo_action)action,boot,(unsigned)slot,(uint32_t)generation,(uint32_t)run);
     httpd_resp_set_type(req,"application/json");
     if (rc==MO_OK) return httpd_resp_sendstr(req,"{\"ok\":true}");
     char body[36];
@@ -96,13 +109,13 @@ static esp_err_t course_action(httpd_req_t *req)
 
 esp_err_t web_start(void)
 {
-    static const char resume_tag[]="resume";
     const httpd_uri_t routes[] = {
         {.uri="/", .method=HTTP_GET, .handler=index_page},
         {.uri="/api/state", .method=HTTP_GET, .handler=send_state},
         {.uri="/api/ask", .method=HTTP_POST, .handler=agent_web_ask},
-        {.uri="/api/start", .method=HTTP_POST, .handler=course_action},
-        {.uri="/api/resume", .method=HTTP_POST, .handler=course_action, .user_ctx=(void*)resume_tag}
+        {.uri="/api/start", .method=HTTP_POST, .handler=course_action, .user_ctx=(void*)MO_START_TEMP},
+        {.uri="/api/resume", .method=HTTP_POST, .handler=course_action, .user_ctx=(void*)MO_RESUME_COURSE},
+        {.uri="/api/action", .method=HTTP_POST, .handler=course_action}
     };
     httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();
     static struct ifreq ap_interface;
