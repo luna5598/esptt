@@ -41,8 +41,32 @@ class TemperatureLab(unittest.TestCase):
             with error:
                 return error.code, json.load(error)
 
+    def wait_slot(self, slot, predicate, timeout=5):
+        deadline = time.monotonic() + timeout
+        while True:
+            state = self.state()
+            if predicate(state["slots"][slot]):
+                return state
+            self.assertLess(time.monotonic(), deadline, state)
+            time.sleep(0.05)
+
+    def test_single_sensor_faults_and_recovery(self):
+        initial = self.wait_slot(0, lambda s: s["fresh"])
+        left = dict(boot=initial["boot"], slot=0, gen=initial["slots"][0]["generation"])
+        for mode in (1, 2, 3):
+            with self.subTest(mode=mode):
+                self.assertEqual(self.post("/sim/fault", **left, mode=mode)[0], 200)
+                invalid = self.wait_slot(0, lambda s: s["status"] == "invalid_sample")
+                self.assertFalse(invalid["slots"][0]["fresh"])
+                self.assertIsNone(invalid["slots"][0]["temp_centi"])
+                self.assertTrue(invalid["slots"][1]["fresh"])
+                self.assertEqual(self.post("/api/start", **left, run=0), (409, {"error": 5}))
+                self.assertEqual(self.post("/sim/fault", **left, mode=0)[0], 200)
+                recovered = self.wait_slot(0, lambda s: s["fresh"])
+                self.assertEqual(recovered["slots"][0]["generation"], left["gen"])
+
     def test_replace_module_and_finish_lesson(self):
-        initial = self.state()
+        initial = self.wait_slot(0, lambda s: s["fresh"])
         left = dict(boot=initial["boot"], slot=0, gen=initial["slots"][0]["generation"])
         self.assertEqual(self.post("/api/start", **left, run=0)[0], 200)
         self.assertEqual(self.post("/api/start", **left, run=0), (409, {"error": 6}))
@@ -57,7 +81,7 @@ class TemperatureLab(unittest.TestCase):
         new = dict(left, gen=paused["slots"][0]["generation"])
         self.assertEqual(self.post("/sim/presence", **new, present=1)[0], 200)
         self.assertEqual(self.post("/api/resume", **left, run=1), (409, {"error": 3}))
-        restored = self.state()
+        restored = self.wait_slot(0, lambda s: s["fresh"])
         self.assertEqual(restored["course"]["samples"], paused["course"]["samples"])
         new["gen"] = restored["slots"][0]["generation"]
         self.assertEqual(self.post("/api/resume", **new, run=1)[0], 200)

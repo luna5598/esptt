@@ -21,30 +21,20 @@ class Bench:
     def __init__(self):
         self.core = load()
         self.boot = secrets.randbits(64) or 1
-        self.core.mo_init(self.boot)
+        if not self.core.bench_init(self.boot):
+            raise RuntimeError("Invalid bench ADC profile")
         self.started = time.monotonic_ns()
-        self.next_sample = 0
-        self.core.mo_presence(0, 1)
-        self.core.mo_presence(1, 1)
         self.tick()
 
     def now(self):
         return (time.monotonic_ns() - self.started) // 1_000_000
 
-    def sample(self, index, slot, now):
-        wave = math.sin(now / 6100 + index * 1.3)
-        self.core.mo_sample(self.boot, index, slot.generation, now,
-                            round(2210 + index * 42 + 95 * wave), round(4800 + 210 * wave))
-
     def tick(self):
         now = self.now()
-        if now < self.next_sample:
-            return
-        self.next_sample = now + 1000
         for index in range(len(LABELS)):
-            slot = self.core.mo_slot(index).contents
-            if slot.present:
-                self.sample(index, slot, now)
+            wave = math.sin(now / 6100 + index * 1.3)
+            self.core.bench_tick(index, now, round(2210 + index * 42 + 95 * wave),
+                                 round(4800 + 210 * wave))
 
     def snapshot(self):
         now = self.now()
@@ -52,7 +42,7 @@ class Bench:
         for i, name in enumerate(LABELS):
             s = self.core.mo_slot(i).contents
             slots.append(dict(name=name, generation=s.generation, present=bool(s.present),
-                              status="sample" if s.present else "empty",
+                              status=self.core.bench_status(i).decode("ascii"),
                               fresh=self.core.mo_read(self.boot, i, s.generation, now) == 0,
                               temp_centi=s.temp if s.has_sample else None,
                               humidity_centi=s.humidity if s.has_sample else None))
@@ -75,18 +65,18 @@ class Bench:
         idx = number("slot", r"[0-9]", len(LABELS) - 1)
         gen = number("gen", r"[0-9]{1,10}", UINT32_MAX)
         now = self.now()
-        if path == "/sim/presence":
-            present = number("present", "[01]", 1)
+        if path.startswith("/sim/"):
             slot = self.core.mo_slot(idx).contents
             if boot != self.boot:
                 return 2
             if gen != slot.generation:
                 return 3
-            changed = present != slot.present
-            result = self.core.mo_presence(idx, present)
-            if result == 0 and changed and present:
-                self.sample(idx, slot, now)
-            return result
+            if path == "/sim/presence":
+                self.core.bench_contact(idx, number("present", "[01]", 1))
+            else:
+                self.core.bench_fault(idx, number("mode", "[0-3]", 3))
+            self.tick()
+            return 0
         run = number("run", r"[0-9]{1,10}", UINT32_MAX)
         action = self.core.mo_start if path == "/api/start" else self.core.mo_resume
         return action(boot, idx, gen, now, run)
@@ -123,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         req = urlsplit(self.path)
-        if req.path not in ("/api/start", "/api/resume", "/sim/presence"):
+        if req.path not in ("/api/start", "/api/resume", "/sim/presence", "/sim/fault"):
             return self.send_error(404)
         host = self.headers.get("Host")
         if (self.headers.get("X-MOBan-UI") != "1" or
@@ -157,7 +147,7 @@ def main():
         server.bench = bench
         server.page = page.replace("</main>", panel + "</main>")
         print(f"MO companion simulator: http://127.0.0.1:{server.server_port}", flush=True)
-        server.serve_forever(poll_interval=0.1)
+        server.serve_forever(poll_interval=0.01)
 
 
 if __name__ == "__main__":

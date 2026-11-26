@@ -1,19 +1,23 @@
-<section><h2>电脑模拟台</h2><p>读数由电脑生成。可在采样中拔出所选模块，再插入并确认，观察课程如何恢复。</p>
+<section><h2>电脑模拟台</h2><p>左手和右手默认装有虚拟温湿度模块。选择采样位置后，可以插拔模块，或改变该槽位的传感器响应。</p>
 <button id="attach">插入温湿度模块</button> <button id="detach">拔出模块</button>
+<p><label>传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
+<option value="2">无应答</option><option value="3">校验错误</option></select></label>
+<button id="apply-fault">应用到所选槽位</button></p>
 <p id="bench-status" role="status"></p></section>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
-  for(const [id,present] of [['attach',1],['detach',0]]){
-    document.getElementById(id).onclick=async()=>{
-      if(!state||!online)return;
-      const slot=Number(el('target').value);
-      const q=new URLSearchParams({boot:state.boot,slot,gen:state.slots[slot].generation,present});
-      try{
-        const r=await fetch('/sim/presence?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
-        el('bench-status').textContent=r.ok?'槽位已更新':'槽位已变化，请重试';
-      }catch{el('bench-status').textContent='模拟台连接中断';}
-      await refresh();
-    };
+  async function update(path, params){
+    if(!state||!online)return;
+    const slot=Number(el('target').value);
+    const q=new URLSearchParams({boot:state.boot,slot,gen:state.slots[slot].generation,...params});
+    try{
+      const r=await fetch('/sim/'+path+'?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
+      el('bench-status').textContent=r.ok?'已更新'+state.slots[slot].name+'的模拟条件':'槽位已变化，请重试';
+    }catch{el('bench-status').textContent='模拟台连接中断';}
+    await refresh();
   }
+  el('attach').onclick=()=>update('presence',{present:1});
+  el('detach').onclick=()=>update('presence',{present:0});
+  el('apply-fault').onclick=()=>update('fault',{mode:el('fault-mode').value});
 });
 </script>

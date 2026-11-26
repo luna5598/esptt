@@ -4,7 +4,7 @@
 #include "limb_reader.h"
 
 typedef struct {
-    uint8_t flags;
+    uint8_t flags, type;
     uint16_t gen, seq;
     uint32_t session;
     unsigned writes;
@@ -29,7 +29,7 @@ static bool read_reg(void *ctx,uint8_t reg,uint8_t *p,size_t n)
     switch(reg){
     case LIMB_INFO:
         assert(n==LIMB_INFO_BYTES);
-        p[0]=0x4d; p[1]=1; p[2]=1; p[3]=2; p[4]=s->flags; p[5]=2;
+        p[0]=0x4d; p[1]=1; p[2]=1; p[3]=s->type; p[4]=s->flags; p[5]=2;
         limb_put16(p+7,s->gen);
         break;
     case LIMB_ACK:
@@ -51,7 +51,7 @@ static bool read_reg(void *ctx,uint8_t reg,uint8_t *p,size_t n)
 
 int main(void)
 {
-    node n={.flags=LIMB_PRESENT|LIMB_READY,.gen=3,.seq=65535,.drop_ack=true};
+    node n={.type=LIMB_TEMP_HUM,.flags=LIMB_PRESENT|LIMB_READY,.gen=3,.seq=65535,.drop_ack=true};
     limb_transport io={.ctx=&n,.read=read_reg,.write=write_reg};
     limb_reader r={0};
     assert(limb_poll(&r,&io,100).result==LIMB_LINK_FAULT);
@@ -74,5 +74,9 @@ int main(void)
     assert(limb_poll(&r,&io,108).result==LIMB_FOREIGN_BINDING);
     n.flags=0;
     assert(limb_poll(&r,&io,109).result==LIMB_EMPTY_SLOT && !r.session);
+    n.flags = LIMB_PRESENT;
+    assert(limb_poll(&r,&io,110).result == LIMB_PENDING);
+    n.type = 255;
+    assert(limb_poll(&r,&io,111).result == LIMB_UNSUPPORTED);
     return 0;
 }
