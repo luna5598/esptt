@@ -74,14 +74,14 @@ int mo_sample(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now,
     if (slots[slot].tip != MO_THERMOMETER) return MO_WRONG_TIP;
     if (humidity > 10000 || temp < -4000 || temp > 8500) return MO_RANGE;
     mo_slot_view *s = &slots[slot];
-    if (s->has_sample && now <= s->sampled_ms) return MO_NO_FRESH_DATA;
+    if (s->sample_count && now <= s->sampled_ms) return MO_NO_FRESH_DATA;
     s->has_sample = 1;
     s->temp_centi = temp;
     s->humidity_centi = humidity;
     s->sampled_ms = now;
     s->sample_count++;
     if (course.phase == MO_RUNNING && course.slot == slot &&
-        course.generation == generation && course.tip == MO_THERMOMETER) {
+        course.generation == generation && course.tip == MO_THERMOMETER && now >= course.timer_since_ms) {
         uint32_t n = course.count;
         if (n > 0 && (now <= course.time_ms[n - 1] || now - course.time_ms[n - 1] < 1000u)) return MO_OK;
         course.temp_centi[n] = temp;
@@ -138,10 +138,20 @@ void mo_invalidate(uint32_t slot)
     if (course.slot == slot) holding = false;
 }
 
+uint32_t mo_max_sample_age(enum mo_tip tip)
+{
+    switch (tip) {
+    case MO_RANGEFINDER: return MO_DISTANCE_FRESH_MS;
+    case MO_THERMOMETER: return MO_FRESH_MS;
+    default: return 0;
+    }
+}
+
 bool mo_sample_fresh(const mo_slot_view *slot, uint64_t now)
 {
-    return slot->present && slot->has_sample && now >= slot->sampled_ms &&
-           now - slot->sampled_ms <= (slot->tip == MO_RANGEFINDER ? MO_DISTANCE_FRESH_MS : MO_FRESH_MS);
+    uint32_t limit = mo_max_sample_age((enum mo_tip)slot->tip);
+    return limit && slot->present && slot->has_sample && now >= slot->sampled_ms &&
+           now - slot->sampled_ms <= limit;
 }
 
 int mo_read(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t now)

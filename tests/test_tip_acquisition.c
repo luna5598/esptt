@@ -62,7 +62,7 @@ static void tick(tip_acquisition *s, uint32_t ms, uint16_t adc)
 
 static void init(tip_acquisition *s, sensor *f)
 {
-    tip_io io = {f, power, read_sensor, write_sensor};
+    tip_io io = {f, power, read_sensor, write_sensor, NULL};
     assert(tip_acquisition_init(s, profile, io));
 }
 
@@ -98,7 +98,7 @@ static void test_id_and_power(void)
     assert(!s.node.type);
     static const tip_id_band overlap[] = {{1, 20, 2}, {20, 30, 3}};
     tip_id_profile invalid = {overlap, 2, 3950, 4095};
-    tip_io io = {&f, power, read_sensor, write_sensor};
+    tip_io io = {&f, power, read_sensor, write_sensor, NULL};
     assert(!tip_acquisition_init(&s, invalid, io));
     tick(&s, 200, 12);
     assert(!s.node.type && !f.power);
@@ -121,7 +121,7 @@ static void test_conversion_and_replacement(void)
     assert(limb_bind_frame(LIMB_BIND, generation, 17, bind));
     assert(temperature_node_write(&s.node, bind, sizeof(bind)));
     tick(&s, origin + 1220, 871);
-    assert(s.phase == AHT_CONVERTING && s.node.session == 17);
+    assert(s.sensor.aht.phase == AHT_CONVERTING && s.node.session == 17);
     /* A removal edge caught between polls must invalidate a same-type replacement. */
     tip_acquisition_tick(&s, origin + 1221, true, true, 871);
     assert(!f.power && !s.node.type && !s.node.session && !s.node.sample_flags);
@@ -144,7 +144,7 @@ static void test_timeout_and_retry(void)
     assert(s.node.sample_flags == 1);
     f.busy = true;
     for (uint32_t ms = 1210; ms <= 1460; ms += 10) tick(&s, ms, 871);
-    assert(!s.node.sample_flags && s.phase == AHT_RETRY);
+    assert(!s.node.sample_flags && s.sensor.aht.phase == AHT_RETRY);
     unsigned reads = f.frame_reads;
     for (uint32_t ms = 1470; ms <= 2450; ms += 10) tick(&s, ms, 871);
     assert(f.frame_reads == reads);
@@ -152,11 +152,11 @@ static void test_timeout_and_retry(void)
     f.nack = true;
     tick(&s, 2460, 871);
     tick(&s, 2470, 871);
-    assert(s.phase == AHT_RETRY && !s.node.sample_flags);
+    assert(s.sensor.aht.phase == AHT_RETRY && !s.node.sample_flags);
     f.nack = false;
     f.corrupt = true;
     for (uint32_t ms = 3470; ms <= 3570; ms += 10) tick(&s, ms, 871);
-    assert(s.phase == AHT_RETRY && !s.node.sample_flags && s.node.sequence == 1);
+    assert(s.sensor.aht.phase == AHT_RETRY && !s.node.sample_flags && s.node.sequence == 1);
     f.corrupt = false;
     for (uint32_t ms = 4570; ms <= 4670; ms += 10) tick(&s, ms, 871);
     assert(s.node.sample_flags == 1 && s.node.sequence == 2 && f.power_ons == 1);

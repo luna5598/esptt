@@ -14,19 +14,20 @@ void mo_observe_slot(uint64_t boot, unsigned slot, uint64_t now, const limb_poll
     bool present = poll->result == LIMB_NEW_SAMPLE || poll->result == LIMB_UNCHANGED ||
                    poll->result == LIMB_NO_SAMPLE;
     enum mo_tip tip = MO_NO_TIP;
-    if (present) tip = poll->sample.type == LIMB_DISTANCE ? MO_RANGEFINDER : MO_THERMOMETER;
-    mo_set_tip(slot, tip, now);
-    if (poll->result == LIMB_NO_SAMPLE ||
-        (poll->result == LIMB_NEW_SAMPLE && (now < poll->sample.age_ms || poll->sample.age_ms > MO_FRESH_MS))) {
-        mo_invalidate(slot);
-    } else if (poll->result == LIMB_NEW_SAMPLE) {
-        uint32_t gen = mo_slot(slot)->generation;
-        uint64_t sampled = now - poll->sample.age_ms;
-        if (tip == MO_RANGEFINDER) {
-            if (poll->sample.age_ms > MO_DISTANCE_FRESH_MS) mo_invalidate(slot);
-            else mo_distance_sample(boot, slot, gen, sampled, poll->sample.a);
-        } else {
-            mo_sample(boot, slot, gen, sampled, poll->sample.a, (uint32_t)poll->sample.b);
+    if (present) {
+        switch (poll->sample.type) {
+        case LIMB_TEMP_HUM: tip = MO_THERMOMETER; break;
+        case LIMB_DISTANCE: tip = MO_RANGEFINDER; break;
         }
     }
+    if (mo_set_tip(slot, tip, now) != MO_OK || tip == MO_NO_TIP) return;
+    if (poll->result == LIMB_UNCHANGED) return;
+    uint16_t age = poll->sample.age_ms;
+    if (poll->result == LIMB_NO_SAMPLE || age > now || age > mo_max_sample_age(tip)) {
+        mo_invalidate(slot);
+        return;
+    }
+    uint32_t gen = mo_slot(slot)->generation;
+    if (tip == MO_RANGEFINDER) mo_distance_sample(boot, slot, gen, now - age, poll->sample.a);
+    else mo_sample(boot, slot, gen, now - age, poll->sample.a, (uint32_t)poll->sample.b);
 }

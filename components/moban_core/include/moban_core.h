@@ -35,6 +35,7 @@ typedef struct {
     uint64_t elapsed_ms, timer_since_ms;
 } mo_course_view;
 
+uint32_t mo_max_sample_age(enum mo_tip tip);
 bool mo_sample_fresh(const mo_slot_view *slot, uint64_t now_ms);
 void mo_init(uint64_t boot_id);
 int mo_set_tip(uint32_t slot, enum mo_tip tip, uint64_t now_ms);

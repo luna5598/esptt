@@ -1,7 +1,8 @@
 #ifndef MOBAN_TIP_ACQUISITION_H
 #define MOBAN_TIP_ACQUISITION_H
 
-#include "temperature_node.h"
+#include "aht20.h"
+#include "vl53l1x.h"
 
 typedef struct {
     uint16_t low, high;       /* Inclusive raw ADC counts, in ascending band order. */
@@ -15,23 +16,12 @@ typedef struct {
 } tip_id_profile;
 
 typedef struct {
-    void *ctx;
-    void (*power)(void *ctx, bool enable);
-    bool (*read)(void *ctx, uint8_t address, uint8_t *payload, size_t n);
-    bool (*write)(void *ctx, uint8_t address, const uint8_t *payload, size_t n);
-} tip_io;
-
-enum aht_phase { AHT_OFF, AHT_PROBE, AHT_TRIGGER, AHT_CONVERTING, AHT_RETRY };
-
-typedef struct {
     temperature_node node;
     tip_id_profile profile;
     tip_io io;
-    uint32_t last_tick, last_vote, phase_start, last_io;
-    uint16_t conversion_gen;
+    uint32_t last_tick, last_vote;
     uint8_t candidate, votes;
-    enum aht_phase phase;
-    bool init_sent;
+    union { aht20 aht; vl53l1x range; } sensor;
 } tip_acquisition;
 
 /* Cold start. The board owns the band table for the lifetime of the slot.

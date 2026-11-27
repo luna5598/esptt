@@ -86,8 +86,6 @@ class Bench:
                     return 9
                 self.core.bench_distance(idx, number("mm", r"[0-9]{1,5}", 32767))
             else:
-                if slot.tip == 2:
-                    return 9
                 self.core.bench_fault(idx, number("mode", "[0-3]", 3))
             self.tick()
             return 0

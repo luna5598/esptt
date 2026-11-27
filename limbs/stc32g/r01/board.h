@@ -12,4 +12,5 @@ bool board_detached(void);
 void board_tip_power(void *ctx, bool on);
 bool board_sensor_read(void *ctx, uint8_t address, uint8_t *bytes, size_t length);
 bool board_sensor_write(void *ctx, uint8_t address, const uint8_t *bytes, size_t length);
+bool board_sensor_read_reg16(void *ctx, uint8_t address, uint16_t reg, uint8_t *bytes, size_t length);
 #endif

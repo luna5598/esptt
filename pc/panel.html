@@ -2,8 +2,8 @@
 <button id="attach">插入温湿度模块</button> <button id="attach-range">插入测距模块</button> <button id="detach">拔出模块</button>
 <p><label>模拟距离（mm，0 表示无回波） <input id="mm" type="number" min="0" max="32767" value="100"></label>
 <button id="set-mm">移动目标</button></p>
-<p><label>温湿度传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
-<option value="2">无应答</option><option value="3">校验错误</option></select></label>
+<p><label>传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
+<option value="2">无应答</option><option value="3">温湿度 CRC 错误 / 测距质量无效</option></select></label>
 <button id="apply-fault">应用到所选槽位</button></p>
 <p><label>模拟已识别口令 <select id="phrase"><option>开始测距</option><option>停止记录</option>
 <option>继续记录</option><option>开始测温</option></select></label> <button id="say">执行口令</button></p>

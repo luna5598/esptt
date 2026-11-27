@@ -40,6 +40,8 @@
         <File><FileName>node_target.c</FileName><FileType>1</FileType><FilePath>..\node_target.c</FilePath></File>
         <File><FileName>temperature_node.c</FileName><FileType>1</FileType><FilePath>..\temperature_node.c</FilePath></File>
         <File><FileName>tip_acquisition.c</FileName><FileType>1</FileType><FilePath>..\tip_acquisition.c</FilePath></File>
+        <File><FileName>aht20.c</FileName><FileType>1</FileType><FilePath>..\aht20.c</FilePath></File>
+        <File><FileName>vl53l1x.c</FileName><FileType>1</FileType><FilePath>..\vl53l1x.c</FilePath></File>
       </Files></Group>
     </Groups>
   </Target></Targets>

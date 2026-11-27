@@ -1,14 +1,13 @@
 #include "board.h"
 #include "pins.h"
+#include "tip_profile.h"
 #include "node_target.h"
 
 static tip_acquisition acquisition;
 static node_target upstream;
 static bool address_phase;
-/* Only enable a powered accessory on this board profile when its driver is installed. */
-static const tip_id_band bands[] = {{791, 951, LIMB_TEMP_HUM}};
-static const tip_id_profile profile = {bands, sizeof(bands)/sizeof(bands[0]), 3950, 4095};
-static const tip_io sensor_bus = {0, board_tip_power, board_sensor_read, board_sensor_write};
+static const tip_io sensor_bus = {0, board_tip_power, board_sensor_read, board_sensor_write,
+                                  board_sensor_read_reg16};
 
 void limb_i2c_irq(void) interrupt I2C_VECTOR
 {
@@ -37,7 +36,7 @@ void main(void)
     uint16_t adc;
     bool seated, detached;
     board_init();
-    if (!tip_acquisition_init(&acquisition, profile, sensor_bus)) return;
+    if (!tip_acquisition_init(&acquisition, r01_tip_profile, sensor_bus)) return;
     I2CCFG = 0x80;
     I2CSLADR = LIMB_ADDRESS << 1;
     I2CSLST = 0;
