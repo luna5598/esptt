@@ -16,7 +16,7 @@ config MOBAN_VOICE_DIN
     default -1
 
 config MOBAN_VOICE_SLOT
-    int "Limb slot for spoken start commands"
+    int "Preferred limb slot when multiple sensors of the requested type are present"
     range 0 3
     default 0
 endmenu

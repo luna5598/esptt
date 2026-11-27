@@ -14,13 +14,8 @@ static void on_voice(void *ctx, voice_event event, int command_id)
     if (event == VOICE_WAKE) {
         device_snapshot snapshot;
         device_snapshot_read(&snapshot);
-        unsigned preferred = CONFIG_MOBAN_VOICE_SLOT;
-        unsigned active = snapshot.course.slot;
-        *session = (mo_voice_session){
-            .boot = snapshot.boot, .opened_ms = snapshot.now, .run = snapshot.course.run_id, .armed = true,
-            .preferred = {preferred, snapshot.slots[preferred].generation},
-            .course = {active, snapshot.slots[active].generation}
-        };
+        mo_voice_arm(session, snapshot.boot, snapshot.now, snapshot.slots, &snapshot.course,
+                     CONFIG_MOBAN_VOICE_SLOT);
     } else if (event == VOICE_COMMAND) {
         enum mo_action action;
         mo_voice_target target;

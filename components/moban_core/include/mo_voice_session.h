@@ -14,11 +14,15 @@ typedef struct {
     uint64_t boot;
     uint64_t opened_ms;
     uint32_t run;
-    mo_voice_target preferred;
+    mo_voice_target temperature;
+    mo_voice_target distance;
     mo_voice_target course;
 } mo_voice_session;
 
 /* Single audio-task owner. Capture both targets under the device snapshot lock.
  * Dispatch still checks boot, generation, run and phase under the runtime lock. */
+void mo_voice_arm(mo_voice_session *session, uint64_t boot, uint64_t now_ms,
+                  const mo_slot_view slots[MO_SLOT_COUNT], const mo_course_view *course,
+                  unsigned preferred_slot);
 bool mo_voice_take(mo_voice_session *session, int command_id, uint64_t now_ms,
                    enum mo_action *action, mo_voice_target *target);
