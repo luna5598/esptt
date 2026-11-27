@@ -1,0 +1,22 @@
+menu "MO companion offline voice"
+config MOBAN_OFFLINE_VOICE
+    bool
+    default y
+
+config MOBAN_VOICE_BCLK
+    int "I2S microphone bit clock GPIO"
+    default -1
+
+config MOBAN_VOICE_WS
+    int "I2S microphone word select GPIO"
+    default -1
+
+config MOBAN_VOICE_DIN
+    int "I2S microphone data input GPIO"
+    default -1
+
+config MOBAN_VOICE_SLOT
+    int "Preferred limb slot when multiple sensors of the requested type are present"
+    range 0 3
+    default 0
+endmenu

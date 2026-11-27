@@ -1,0 +1,48 @@
+name: S31 firmware
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    name: S31 ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: espressif/idf:v6.1.1
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [classroom, voice, pcm-probe]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build target firmware
+        shell: bash
+        env:
+          PROFILE: ${{ matrix.profile }}
+          IDF_TARGET: esp32s31
+        run: |
+          . "$IDF_PATH/export.sh"
+          case "$PROFILE" in
+            classroom) idf.py -B "$GITHUB_WORKSPACE/build-ci" build ;;
+            voice)
+              idf.py -C profiles/voice -B "$GITHUB_WORKSPACE/build-ci" \
+                -D "SDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/profiles/voice/sdkconfig.defaults;$GITHUB_WORKSPACE/tests/s31_wired.defaults" build ;;
+            pcm-probe)
+              printf '\0\0' > "$RUNNER_TEMP/silence.pcm"
+              idf.py -C profiles/voice -B "$GITHUB_WORKSPACE/build-ci" \
+                -D MOBAN_VOICE_PROBE=ON -D MOBAN_VOICE_PCM="$RUNNER_TEMP/silence.pcm" build ;;
+          esac
+      - name: Check both OTA slots and packed speech models
+        if: matrix.profile != 'classroom'
+        shell: bash
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          . "$IDF_PATH/export.sh"
+          args=()
+          if [[ "$PROFILE" == voice ]]; then args+=(--wired); fi
+          python3 tools/check_voice_budget.py build-ci "${args[@]}"

@@ -166,13 +166,27 @@ enum mo_action mo_button_action(enum mo_button key, uint32_t slot)
     }
 }
 
+static const mo_spoken_command vocabulary[] = {
+    {MO_START_TEMP,     "开始测温", "kai shi ce wen"},
+    {MO_START_DISTANCE, "开始测距", "kai shi ce ju"},
+    {MO_RESUME_COURSE,  "继续记录", "ji xu ji lu"},
+    {MO_STOP_COURSE,    "停止记录", "ting zhi ji lu"},
+};
+
+const mo_spoken_command *mo_spoken_commands(size_t *count)
+{
+    *count = sizeof(vocabulary) / sizeof(vocabulary[0]);
+    return vocabulary;
+}
+
 enum mo_action mo_phrase_action(const char *phrase)
 {
     if (!phrase) return 0;
-    if (!strcmp(phrase, "开始测距")) return MO_START_DISTANCE;
-    if (!strcmp(phrase, "开始测温")) return MO_START_TEMP;
-    if (!strcmp(phrase, "继续记录")) return MO_RESUME_COURSE;
-    if (!strcmp(phrase, "停止记录")) return MO_STOP_COURSE;
+    size_t count;
+    const mo_spoken_command *commands = mo_spoken_commands(&count);
+    for (size_t i = 0; i < count; ++i) {
+        if (!strcmp(phrase, commands[i].text)) return commands[i].action;
+    }
     return 0;
 }
 

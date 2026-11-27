@@ -1,0 +1,5 @@
+idf_component_register(SRCS "probe.c" PRIV_REQUIRES moban_voice heap)
+if(MOBAN_VOICE_PCM)
+    target_add_binary_data(${COMPONENT_LIB} "${MOBAN_VOICE_PCM}" BINARY RENAME_TO probe_pcm ALIGN 2)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE MOBAN_PROBE_HAS_PCM=1)
+endif()

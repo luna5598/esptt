@@ -1,0 +1,8 @@
+# Compile-only wiring for the footprint check. Configure pins from the PCB for flashing.
+CONFIG_MOBAN_LIMB_BUS=y
+CONFIG_MOBAN_SDA=8
+CONFIG_MOBAN_SCL=9
+CONFIG_MOBAN_MUX_RESET=10
+CONFIG_MOBAN_VOICE_BCLK=4
+CONFIG_MOBAN_VOICE_WS=5
+CONFIG_MOBAN_VOICE_DIN=6

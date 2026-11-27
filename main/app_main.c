@@ -18,6 +18,9 @@
 
 esp_err_t limb_bus_start(void);
 esp_err_t web_start(void);
+#if CONFIG_MOBAN_OFFLINE_VOICE
+void device_voice_start(void);
+#endif
 
 void app_main(void)
 {
@@ -58,4 +61,7 @@ void app_main(void)
     if (agent != ESP_OK && agent != ESP_ERR_NVS_NOT_FOUND)
         ESP_LOGW("agent", "Online questions unavailable: %s", esp_err_to_name(agent));
     ESP_ERROR_CHECK(web_start());
+#if CONFIG_MOBAN_OFFLINE_VOICE
+    device_voice_start();
+#endif
 }

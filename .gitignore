@@ -13,3 +13,7 @@ dependencies.lock
 /limbs/stc32g/r01/Listings/
 /limbs/stc32g/r01/*.uvopt*
 /limbs/stc32g/r01/*.uvgui*
+/profiles/voice/build*/
+/profiles/voice/sdkconfig
+/profiles/voice/sdkconfig.old
+/profiles/voice/managed_components/
