@@ -1,6 +1,7 @@
 #ifndef MOBAN_CORE_H
 #define MOBAN_CORE_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -40,6 +41,13 @@ int mo_set_tip(uint32_t slot, enum mo_tip tip, uint64_t now_ms);
 int mo_distance_sample(uint64_t boot, uint32_t slot, uint32_t generation, uint64_t sampled_ms,
                        int32_t distance_mm);
 uint64_t mo_elapsed_ms(uint64_t now_ms);
+typedef struct {
+    enum mo_action action;
+    const char *text;
+    const char *pinyin;
+} mo_spoken_command;
+
+const mo_spoken_command *mo_spoken_commands(size_t *count);
 enum mo_action mo_phrase_action(const char *phrase);
 enum mo_action mo_button_action(enum mo_button key, uint32_t slot);
 int mo_dispatch(enum mo_action action, uint64_t boot, uint32_t slot, uint32_t generation,
