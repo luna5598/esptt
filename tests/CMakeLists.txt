@@ -26,3 +26,7 @@ add_executable(test_tip_acquisition test_tip_acquisition.c
     ../limbs/stc32g/tip_acquisition.c ../limbs/stc32g/temperature_node.c)
 target_include_directories(test_tip_acquisition PRIVATE ../limbs/stc32g ../components/limb_protocol/include)
 add_test(NAME tip_acquisition COMMAND test_tip_acquisition)
+add_executable(test_node_target test_node_target.c ../limbs/stc32g/node_target.c
+    ../limbs/stc32g/temperature_node.c)
+target_include_directories(test_node_target PRIVATE ../limbs/stc32g ../components/limb_protocol/include)
+add_test(NAME node_target COMMAND test_node_target)

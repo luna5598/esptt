@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="project_proj.xsd">
+  <SchemaVersion>1.1</SchemaVersion>
+  <Header>### uVision Project, (C) Keil Software</Header>
+  <Targets><Target>
+    <TargetName>STC32G12K128 R01</TargetName>
+    <ToolsetNumber>0x1</ToolsetNumber><ToolsetName>MCS-251</ToolsetName>
+    <TargetOption>
+      <TargetCommonOption>
+        <Device>STC32G12K128 Series</Device><Vendor>STC</Vendor>
+        <Cpu>IRAM(0-0xFFF) XRAM(0x10000-0x11FFF) IROM(0xFE0000-0xFFFFFF) CLOCK(24000000)</Cpu>
+        <StartupFile>"LIB\STARTUP251.ASM" ("80251 Startup Code")</StartupFile>
+        <OutputDirectory>.\Objects\</OutputDirectory><OutputName>limb</OutputName>
+        <CreateExecutable>1</CreateExecutable><CreateHexFile>1</CreateHexFile>
+        <ListingPath>.\Listings\</ListingPath><HexFormatSelection>1</HexFormatSelection>
+      </TargetCommonOption>
+      <Target251>
+        <Target251Misc>
+          <MemoryModel>3</MemoryModel><RomSize>3</RomSize><uSrcBin>1</uSrcBin>
+          <hadIRAM>1</hadIRAM><hadXRAM>1</hadXRAM><hadIROM>1</hadIROM>
+          <OnChipMemories>
+            <IROM><Type>1</Type><StartAddress>0xfe0000</StartAddress><Size>0x20000</Size></IROM>
+            <IRAM><Type>0</Type><StartAddress>0</StartAddress><Size>0x1000</Size></IRAM>
+            <XRAM><Type>0</Type><StartAddress>0x10000</StartAddress><Size>0x2000</Size></XRAM>
+          </OnChipMemories>
+        </Target251Misc>
+        <C251><uRentF>1</uRentF><Optim>7</Optim><wLevel>2</wLevel><VariousControls>
+          <Define>MOBAN_KEIL251</Define>
+          <IncludePath>.;..;..\..\..\components\limb_protocol\include</IncludePath>
+        </VariousControls></C251>
+        <Lx51><UseMemoryFromTarget>1</UseMemoryFromTarget><MiscControls>REMOVEUNUSED</MiscControls></Lx51>
+      </Target251>
+    </TargetOption>
+    <Groups>
+      <Group><GroupName>R01</GroupName><Files>
+        <File><FileName>main.c</FileName><FileType>1</FileType><FilePath>.\main.c</FilePath></File>
+        <File><FileName>board.c</FileName><FileType>1</FileType><FilePath>.\board.c</FilePath></File>
+      </Files></Group>
+      <Group><GroupName>Shared node</GroupName><Files>
+        <File><FileName>node_target.c</FileName><FileType>1</FileType><FilePath>..\node_target.c</FilePath></File>
+        <File><FileName>temperature_node.c</FileName><FileType>1</FileType><FilePath>..\temperature_node.c</FilePath></File>
+        <File><FileName>tip_acquisition.c</FileName><FileType>1</FileType><FilePath>..\tip_acquisition.c</FilePath></File>
+      </Files></Group>
+    </Groups>
+  </Target></Targets>
+</Project>

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <string.h>
 #include "tip_acquisition.h"
+#include "limb_protocol.h"
 
 typedef struct {
     bool power, calibrated, busy, corrupt, nack;

@@ -78,16 +78,16 @@ static void sample(tip_acquisition *s, uint32_t now)
     static const uint8_t init[] = {0xbe, 0x08, 0x00};
     static const uint8_t trigger[] = {0xac, 0x33, 0x00};
     uint32_t elapsed = now - s->phase_start;
-    uint8_t data[7];
+    uint8_t payload[7];
 
     switch (s->phase) {
     case AHT_PROBE:
         if (elapsed < POWER_ON_MS || now - s->last_io < COMMAND_WAIT_MS) return;
         /* Reading one byte at 7-bit 0x38 sends the 0x71 read address. */
-        if (!s->io.read(s->io.ctx, AHT_ADDRESS, data, 1)) break;
+        if (!s->io.read(s->io.ctx, AHT_ADDRESS, payload, 1)) break;
         s->last_io = now;
-        if (!(data[0] & 0x80u)) {
-            if (data[0] & 0x08u) {
+        if (!(payload[0] & 0x80u)) {
+            if (payload[0] & 0x08u) {
                 s->node.probing = false;
                 s->phase = AHT_TRIGGER;
                 s->phase_start = now - PERIOD_MS;
@@ -109,12 +109,12 @@ static void sample(tip_acquisition *s, uint32_t now)
         return;
     case AHT_CONVERTING:
         if (elapsed < CONVERSION_MS || now - s->last_io < COMMAND_WAIT_MS) return;
-        if (elapsed >= TIMEOUT_MS || !s->io.read(s->io.ctx, AHT_ADDRESS, data, sizeof(data))) break;
+        if (elapsed >= TIMEOUT_MS || !s->io.read(s->io.ctx, AHT_ADDRESS, payload, sizeof(payload))) break;
         s->last_io = now;
-        if (data[0] & 0x80u) return;
-        if (!temperature_node_receive_aht20(&s->node, s->conversion_gen, data, sizeof(data)) &&
+        if (payload[0] & 0x80u) return;
+        if (!temperature_node_receive_aht20(&s->node, s->conversion_gen, payload, sizeof(payload)) &&
             s->node.sample_flags != 2) break;
-        /* Timestamp the trigger so a late read never makes old data look fresh. */
+        /* Timestamp the trigger so a late read never makes old payload look fresh. */
         s->node.age_ms = (uint16_t)elapsed;
         s->phase = AHT_TRIGGER;
         s->phase_start = now;
