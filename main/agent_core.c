@@ -2,7 +2,7 @@
 #include "claw_cap.h"
 #include "claw_core.h"
 #include "freertos/semphr.h"
-#include "agent_temperature.h"
+#include "agent_sensors.h"
 
 static claw_core_handle_t core;
 static SemaphoreHandle_t question_lock;
@@ -13,7 +13,7 @@ esp_err_t agent_init(const char *base_url, const char *model, const char *api_ke
 {
     static const char *const groups[] = {"moban"};
     esp_err_t err = claw_cap_init();
-    if (err == ESP_OK) err = agent_register_temperature();
+    if (err == ESP_OK) err = agent_register_sensors();
     if (err == ESP_OK) err = claw_cap_set_llm_visible_groups(groups, 1);
     if (err == ESP_OK) err = claw_cap_start_all();
     if (err != ESP_OK) return err;
@@ -22,11 +22,12 @@ esp_err_t agent_init(const char *base_url, const char *model, const char *api_ke
     const claw_core_config_t config = {
         .backend_type = "openai_compatible", .base_url = base_url, .model = model,
         .api_key = api_key, .auth_type = "bearer", .supports_tools = true,
-        .system_prompt = "You answer MO companion temperature and humidity questions. "
-            "Call read_temperature on every question. Slots 0,1,2,3 mean left hand, "
-            "right hand, left foot, right foot. Report the measured sample, divide centi-units "
-            "by 100, and reply in the user's language. If unavailable or stale, report its "
-            "status without a numeric reading. Never invent readings.",
+        .system_prompt = "Answer MO companion sensor questions in the user's language. "
+            "For each requested slot and measurement call read_distance for distance, "
+            "or read_temperature for temperature and humidity. Slots 0,1,2,3 mean "
+            "left hand, right hand, left foot, right foot. Describe the sample at the time "
+            "of the tool call. Report distance_mm in mm and divide centi-units by 100. "
+            "If status is not ok, report the status without a value. Never invent readings.",
         .call_cap = claw_cap_call_from_core, .timeout_ms = 15000, .max_tokens = 256,
         .task_core = tskNO_AFFINITY, .max_tool_iterations = 3,
         .max_context_providers = 1, .request_queue_len = 1, .response_queue_len = 1,
@@ -61,7 +62,7 @@ esp_err_t agent_ask(const char *question, char **answer)
     if (++next_id == 0) ++next_id;
     agent_begin_observations(next_id);
     const claw_core_request_t request = {
-        .request_id = next_id, .session_id = "temperature", .user_text = question,
+        .request_id = next_id, .session_id = "sensors", .user_text = question,
     };
     claw_core_response_t response = {0};
     esp_err_t err = claw_core_start_run(core, &request, 0);

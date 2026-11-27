@@ -1,0 +1,44 @@
+name: ESP-Claw sensor loop
+on:
+  pull_request:
+    paths:
+      - 'main/agent*'
+      - 'main/runtime*'
+      - 'components/moban_core/**'
+      - 'components/limb_reader/**'
+      - 'components/limb_protocol/**'
+      - 'tests/agent_loop/**'
+      - 'cmake/esp_claw.cmake'
+      - '.github/workflows/agent-loop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: espressif/idf:v6.1.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build and exercise the agent HTTP loop on ESP32-C3 QEMU
+        shell: bash
+        env:
+          IDF_TARGET: esp32c3
+        run: |
+          python3 "$IDF_PATH/tools/idf_tools.py" install qemu-riscv32
+          . "$IDF_PATH/export.sh"
+          build="$RUNNER_TEMP/agent-loop"
+          idf.py -C tests/agent_loop -B "$build" build
+          log="$RUNNER_TEMP/agent-loop.log"
+          timeout -k 5s 150s idf.py -C tests/agent_loop -B "$build" qemu > "$log" 2>&1 &
+          runner=$!
+          trap 'kill "$runner" 2>/dev/null || true; wait "$runner" 2>/dev/null || true' EXIT
+          while kill -0 "$runner" 2>/dev/null; do
+            if grep -Eq 'MOBAN_AGENT_LOOP_PASS|assert failed:|Guru Meditation Error|abort\(\) was called' "$log"; then break; fi
+            sleep 1
+          done
+          tail -80 "$log"
+          grep -q 'MOBAN_AGENT_LOOP_PASS' "$log"

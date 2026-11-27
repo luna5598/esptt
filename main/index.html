@@ -15,8 +15,8 @@ button{background:#235c4c;color:white}button:disabled{opacity:.45}#samples{overf
 <p id="phase">等待设备</p><progress id="progress" value="0" max="10"></progress>
 <p id="timer" hidden></p><p id="samples"></p><label>采样位置 <select id="target"></select></label> <button id="action" disabled>开始记录</button>
 <button id="stop" hidden>停止记录</button><p id="result" role="status"></p></section>
-<section id="agent" hidden><h2>温湿度问答</h2><form id="askform">
-<label>问 MO伴 <input id="question" maxlength="128" required placeholder="左手现在多少度？"></label>
+<section id="agent" hidden><h2>传感器问答</h2><form id="askform">
+<label>问 MO伴 <input id="question" maxlength="128" required placeholder="左脚前面的物体有多远？"></label>
 <button id="askbutton">提问</button></form><p id="answer" role="status"></p></section></main>
 <script>
 const el=id=>document.getElementById(id);
