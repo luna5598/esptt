@@ -1,8 +1,9 @@
 #include "slot_observation.h"
-#include "tip_acquisition.h"
+#include "r01/tip_profile.h"
+#include "vl53l1x_fixture.h"
 #include <string.h>
 
-enum sensor_fault { NORMAL, STUCK_BUSY, NO_ACK, BAD_CRC };
+enum sensor_fault { NORMAL, STUCK_BUSY, NO_ACK, BAD_FRAME };
 
 typedef struct {
     tip_acquisition tip;
@@ -11,7 +12,7 @@ typedef struct {
     enum sensor_fault fault;
     bool seated, detached, powered, calibrated, triggered;
     uint32_t clock, trigger_ms;
-    uint32_t ranged_ms;
+    vl53_fixture range;
     uint16_t tip_adc, distance_mm;
     int temperature, humidity;
     uint8_t frame[7];
@@ -20,13 +21,11 @@ typedef struct {
 static bench_slot slots[MO_SLOT_COUNT];
 static uint64_t bench_boot;
 static uint32_t session_counter;
-/* PC fixture counts. Calibrate the physical board separately. */
-static const tip_id_band id_bands[] = {{791,951,LIMB_TEMP_HUM}, {1150,1310,LIMB_DISTANCE}};
-
 static void power(void *ctx, bool on)
 {
     bench_slot *s = ctx;
     s->powered = on;
+    vl53_fixture_reset(&s->range);
     s->calibrated = s->triggered = false;
 }
 
@@ -60,7 +59,10 @@ static void capture(bench_slot *s)
 static bool sensor_write(void *ctx, uint8_t addr, const uint8_t *p, size_t n)
 {
     bench_slot *s = ctx;
-    if (addr != 0x38 || !s->powered || s->fault == NO_ACK || n != 3) return false;
+    if (!s->powered || s->fault == NO_ACK) return false;
+    if (addr == 0x29 && s->tip.node.type == LIMB_DISTANCE)
+        return vl53_fixture_write(&s->range, s->clock, p, n);
+    if (addr != 0x38 || s->tip.node.type != LIMB_TEMP_HUM || n != 3) return false;
     if (p[0] == 0xbe && p[1] == 8 && p[2] == 0) {
         s->calibrated = true;
         return true;
@@ -85,8 +87,17 @@ static bool sensor_read(void *ctx, uint8_t addr, uint8_t *p, size_t n)
     memcpy(p, s->frame, n);
     if (busy) p[0] |= 0x80;
     else s->triggered = false;
-    if (s->fault == BAD_CRC) p[6] ^= 1;
+    if (s->fault == BAD_FRAME) p[6] ^= 1;
     return true;
+}
+
+static bool sensor_read_reg16(void *ctx, uint8_t addr, uint16_t reg, uint8_t *p, size_t n)
+{
+    bench_slot *s = ctx;
+    if (addr != 0x29 || s->tip.node.type != LIMB_DISTANCE || !s->powered || s->fault == NO_ACK)
+        return false;
+    s->range.status = s->fault == BAD_FRAME ? 4 : 9;
+    return vl53_fixture_read(&s->range, s->clock, reg, p, n, s->distance_mm, s->fault == STUCK_BUSY);
 }
 
 static bool node_read(void *ctx, uint8_t reg, uint8_t *p, size_t n)
@@ -107,11 +118,10 @@ bool bench_init(uint64_t boot)
     bench_boot = boot;
     session_counter = 0;
     mo_init(boot);
-    const tip_id_profile profile = {id_bands, 2, 3950, 4095};
     for (unsigned i = 0; i < MO_SLOT_COUNT; i++) {
         bench_slot *s = &slots[i];
-        tip_io io = {s, power, sensor_read, sensor_write};
-        if (!tip_acquisition_init(&s->tip, profile, io)) return false;
+        tip_io io = {s, power, sensor_read, sensor_write, sensor_read_reg16};
+        if (!tip_acquisition_init(&s->tip, r01_tip_profile, io)) return false;
         s->seated = i < 3;
         s->tip_adc = i == 2 ? 1230 : 871;
         s->distance_mm = 300;
@@ -153,11 +163,6 @@ void bench_tick(unsigned slot, uint64_t now, int temp, int humidity)
     s->humidity = humidity;
     tip_acquisition_tick(&s->tip, s->clock, s->seated, s->detached, s->seated ? s->tip_adc : 4095);
     s->detached = false;
-    if (s->powered && s->tip.node.type == LIMB_DISTANCE && s->clock - s->ranged_ms >= 100) {
-        s->ranged_ms = s->clock;
-        limb_node_receive_range(&s->tip.node, s->tip.node.generation, s->distance_mm,
-                                s->distance_mm != 0, 0);
-    }
     limb_transport transport = {s, node_read, node_write};
     session_counter++;
     if (!session_counter) session_counter = 1;

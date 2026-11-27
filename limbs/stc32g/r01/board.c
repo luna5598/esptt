@@ -131,6 +131,7 @@ static bool begin_transfer(uint8_t address_byte)
     if (!live() || board_millis() - enabled_at < 5) return false;
     TIP_IO_REQ = 1;
     TIP_SDA = 1;
+    half_cycle();
     if (!raise_clock() || !TIP_SDA) return false;
     TIP_SDA = 0;
     half_cycle();
@@ -158,11 +159,9 @@ bool board_sensor_write(void *ctx, uint8_t address, const uint8_t *bytes, size_t
     return end_transfer(ok);
 }
 
-bool board_sensor_read(void *ctx, uint8_t address, uint8_t *bytes, size_t length)
+static bool read_payload(bool ok, uint8_t *bytes, size_t length)
 {
     uint8_t n, octet;
-    bool ok = begin_transfer((uint8_t)((address << 1) | 1));
-    (void)ctx;
     while (ok && length) {
         octet = 0;
         TIP_SDA = 1;
@@ -180,4 +179,18 @@ bool board_sensor_read(void *ctx, uint8_t address, uint8_t *bytes, size_t length
         TIP_SCL = 0;
     }
     return end_transfer(ok);
+}
+
+bool board_sensor_read(void *ctx, uint8_t address, uint8_t *bytes, size_t length)
+{
+    (void)ctx;
+    return read_payload(begin_transfer((uint8_t)((address << 1) | 1)), bytes, length);
+}
+
+bool board_sensor_read_reg16(void *ctx, uint8_t address, uint16_t reg, uint8_t *bytes, size_t length)
+{
+    bool ok = begin_transfer((uint8_t)(address << 1));
+    (void)ctx;
+    ok = ok && write_octet((uint8_t)(reg >> 8)) && write_octet((uint8_t)reg);
+    return read_payload(ok && begin_transfer((uint8_t)((address << 1) | 1)), bytes, length);
 }

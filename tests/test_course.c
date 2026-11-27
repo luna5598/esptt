@@ -11,6 +11,8 @@ int main(void)
     assert(mo_read(42,0,1,2600)==MO_OK && mo_read(42,0,1,2601)==MO_NO_FRESH_DATA);
     assert(mo_start(42,0,1,200,0)==MO_OK);
     assert(mo_start(42,0,1,200,0)==MO_COURSE_CHANGED);
+    assert(mo_sample(42,0,1,190,2123,6000)==MO_OK);
+    assert(mo_course()->count == 0); /* Late delivery of a pre-start conversion. */
     assert(mo_sample(42,0,1,1000,2123,6000)==MO_OK);
     assert(mo_sample(42,0,1,1000,2123,6000)==MO_NO_FRESH_DATA);
     assert(mo_presence(0,0)==MO_OK && mo_course()->phase==MO_WAITING);
@@ -24,6 +26,8 @@ int main(void)
     assert(mo_course()->phase==MO_DONE && mo_course()->count==10 && mo_course()->temp_centi[0]==2123);
     mo_invalidate(0);
     assert(mo_read(42,0,3,12000)==MO_NO_FRESH_DATA);
+    assert(mo_sample(42,0,3,11099,2230,5310)==MO_NO_FRESH_DATA);
+    assert(!mo_slot(0)->has_sample); /* Invalidation cannot revive an older conversion. */
     mo_init(43);
     assert(mo_read(42,0,0,0)==MO_OLD_BOOT);
     return 0;

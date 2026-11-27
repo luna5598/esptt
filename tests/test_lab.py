@@ -88,6 +88,20 @@ class TemperatureLab(unittest.TestCase):
         stopped = self.state()["course"]
         self.assertEqual((stopped["phase"], stopped["events"]), ("stopped", 1))
 
+    def test_distance_fault_isolation_and_recovery(self):
+        state = self.wait_slot(2, lambda s: s["fresh"])
+        target = dict(boot=state["boot"], slot=2, gen=state["slots"][2]["generation"])
+        for mode in (1, 2, 3):
+            with self.subTest(mode=mode):
+                self.assertEqual(self.post("/sim/fault", **target, mode=mode)[0], 200)
+                invalid = self.wait_slot(2, lambda s: s["status"] == "invalid_sample")
+                self.assertIsNone(invalid["slots"][2]["distance_mm"])
+                self.assertTrue(invalid["slots"][0]["fresh"])
+                self.assertEqual(self.post("/sim/voice", **target, phrase="开始测距", run=0)[0], 409)
+                self.assertEqual(self.post("/sim/fault", **target, mode=0)[0], 200)
+                healthy = self.wait_slot(2, lambda s: s["fresh"])
+                self.assertEqual(healthy["slots"][2]["generation"], target["gen"])
+
     def test_single_sensor_faults_and_recovery(self):
         initial = self.wait_slot(0, lambda s: s["fresh"])
         left = dict(boot=initial["boot"], slot=0, gen=initial["slots"][0]["generation"])
