@@ -28,7 +28,9 @@ jobs:
           . "$IDF_PATH/export.sh"
           case "$PROFILE" in
             classroom) idf.py -B "$GITHUB_WORKSPACE/build-ci" build ;;
-            voice) idf.py -C profiles/voice -B "$GITHUB_WORKSPACE/build-ci" build ;;
+            voice)
+              idf.py -C profiles/voice -B "$GITHUB_WORKSPACE/build-ci" \
+                -D "SDKCONFIG_DEFAULTS=$GITHUB_WORKSPACE/profiles/voice/sdkconfig.defaults;$GITHUB_WORKSPACE/tests/s31_wired.defaults" build ;;
             pcm-probe)
               printf '\0\0' > "$RUNNER_TEMP/silence.pcm"
               idf.py -C profiles/voice -B "$GITHUB_WORKSPACE/build-ci" \
@@ -36,4 +38,11 @@ jobs:
           esac
       - name: Check both OTA slots and packed speech models
         if: matrix.profile != 'classroom'
-        run: python3 tools/check_voice_budget.py build-ci
+        shell: bash
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          . "$IDF_PATH/export.sh"
+          args=()
+          if [[ "$PROFILE" == voice ]]; then args+=(--wired); fi
+          python3 tools/check_voice_budget.py build-ci "${args[@]}"

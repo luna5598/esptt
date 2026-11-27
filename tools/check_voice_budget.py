@@ -2,6 +2,7 @@
 import argparse
 import json
 import struct
+import subprocess
 from pathlib import Path
 
 
@@ -50,7 +51,20 @@ def packed_models(blob):
     return names
 
 
-def report(build):
+def linked_symbols(build, wired):
+    project = json.loads((build / "project_description.json").read_text())
+    elf = build / project["app_elf"]
+    result = subprocess.run(["riscv32-esp-elf-nm", "--defined-only", str(elf)],
+                            check=True, capture_output=True, text=True)
+    symbols = {line.split()[-1] for line in result.stdout.splitlines() if line.split()}
+    required = {"voice_feed", "esp_mn_handle_from_name", "esp_srmodel_init"}
+    if wired:
+        required.update({"limb_poll", "i2s_channel_read"})
+    check(required <= symbols, f"missing from linked firmware: {sorted(required - symbols)}")
+
+
+def report(build, wired):
+    linked_symbols(build, wired)
     manifest = json.loads((build / "flasher_args.json").read_text())
     check(manifest["flash_settings"]["flash_size"] == "16MB", "expected a 16 MiB flash build")
     flash_size = 16 * 1024 * 1024
@@ -81,4 +95,6 @@ def report(build):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build", type=Path)
-    report(parser.parse_args().build)
+    parser.add_argument("--wired", action="store_true", help="also require microphone and limb I/O")
+    args = parser.parse_args()
+    report(args.build, args.wired)
