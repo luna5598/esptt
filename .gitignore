@@ -9,3 +9,7 @@ dependencies.lock
 /tests/agent_loop/build/
 /tests/agent_loop/sdkconfig
 /tests/agent_loop/sdkconfig.old
+/limbs/stc32g/r01/Objects/
+/limbs/stc32g/r01/Listings/
+/limbs/stc32g/r01/*.uvopt*
+/limbs/stc32g/r01/*.uvgui*

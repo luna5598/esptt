@@ -21,10 +21,10 @@ void temperature_node_advance(temperature_node *node, uint32_t elapsed_ms)
 static uint8_t aht20_crc(const uint8_t *frame)
 {
     uint8_t crc = 0xff;
-    unsigned i, bit;
+    unsigned i, shift;
     for (i = 0; i < 6; i++) {
         crc ^= frame[i];
-        for (bit = 0; bit < 8; bit++) {
+        for (shift = 0; shift < 8; shift++) {
             crc = (uint8_t)((crc & 0x80u) ? (crc << 1) ^ 0x31u : (unsigned)crc << 1);
         }
     }
@@ -67,9 +67,9 @@ bool limb_node_receive_range(temperature_node *node, uint16_t gen, uint16_t mm, 
     return node->sample_flags == 1;
 }
 
-bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *data, size_t length)
+bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *payload, size_t length)
 {
-    size_t expected;
+    size_t expected, i;
     switch (reg) {
     case LIMB_INFO: expected = LIMB_INFO_BYTES; break;
     case LIMB_ACK: expected = LIMB_ACK_BYTES; break;
@@ -77,37 +77,37 @@ bool temperature_node_read(const temperature_node *node, uint8_t reg, uint8_t *d
     default: return false;
     }
     if (length != expected) return false;
-    memset(data, 0, length);
+    for (i = 0; i < length; ++i) payload[i] = 0;
     switch (reg) {
     case LIMB_INFO:
-        data[0] = 0x4d;
-        data[1] = 1;
-        data[2] = 1;
-        data[3] = node->type;
-        if (node->type) data[4] |= LIMB_PRESENT;
+        payload[0] = 0x4d;
+        payload[1] = 1;
+        payload[2] = 1;
+        payload[3] = node->type;
+        if (node->type) payload[4] |= LIMB_PRESENT;
         if (limb_sensor_cap(node->type)) {
-            if (!node->probing) data[4] |= LIMB_READY;
-            limb_put16(data + 5, limb_sensor_cap(node->type));
+            if (!node->probing) payload[4] |= LIMB_READY;
+            limb_put16(payload + 5, limb_sensor_cap(node->type));
         }
-        if (node->session) data[4] |= LIMB_BOUND;
-        limb_put16(data + 7, node->generation);
-        data[10] = 1;
+        if (node->session) payload[4] |= LIMB_BOUND;
+        limb_put16(payload + 7, node->generation);
+        payload[10] = 1;
         break;
     case LIMB_ACK:
-        limb_put32(data, node->session);
-        limb_put16(data + 6, node->generation);
+        limb_put32(payload, node->session);
+        limb_put16(payload + 6, node->generation);
         break;
     case LIMB_SAMPLE:
-        limb_put16(data, node->generation);
-        limb_put16(data + 2, node->sequence);
-        data[4] = node->sample_flags;
-        data[5] = node->type;
-        limb_put16(data + 6, (uint16_t)(node->type == LIMB_DISTANCE ? node->distance_mm : node->temperature));
-        limb_put16(data + 8, (uint16_t)node->humidity);
-        limb_put16(data + 10, node->age_ms);
+        limb_put16(payload, node->generation);
+        limb_put16(payload + 2, node->sequence);
+        payload[4] = node->sample_flags;
+        payload[5] = node->type;
+        limb_put16(payload + 6, (uint16_t)(node->type == LIMB_DISTANCE ? node->distance_mm : node->temperature));
+        limb_put16(payload + 8, (uint16_t)node->humidity);
+        limb_put16(payload + 10, node->age_ms);
         break;
     }
-    data[length - 1] = limb_crc(reg, data, length - 1);
+    payload[length - 1] = limb_crc(reg, payload, length - 1);
     return true;
 }
 

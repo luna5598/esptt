@@ -1,7 +1,7 @@
 #ifndef MOBAN_TEMPERATURE_NODE_H
 #define MOBAN_TEMPERATURE_NODE_H
 
-#include "limb_protocol.h"
+#include "limb_wire.h"
 
 typedef struct {
     uint32_t session;
@@ -32,7 +32,7 @@ bool limb_node_receive_range(temperature_node *node, uint16_t generation, uint16
 /* Read one register snapshot for a pointer write followed by repeated START.
  * Deliver a complete BIND or RELEASE transaction after STOP. */
 bool temperature_node_read(const temperature_node *node, uint8_t reg,
-                           uint8_t *data, size_t length);
+                           uint8_t *payload, size_t length);
 bool temperature_node_write(temperature_node *node, const uint8_t *frame, size_t length);
 
 #endif
