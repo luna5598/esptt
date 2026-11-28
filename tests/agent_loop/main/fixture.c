@@ -196,6 +196,12 @@ void app_main(void)
 
     state.slots[2] = (mo_slot_view){.tip=MO_RANGEFINDER, .present=1, .generation=7, .has_sample=1,
         .distance_mm=300, .sampled_ms=state.now - MO_DISTANCE_FRESH_MS};
+    state.bus_ready = false;
+    state.bus_fault = true;
+    check_read("read_distance", "{\"slot\":2}", "bus_fault", false);
+    check_read("read_temperature", "{\"slot\":0}", "bus_fault", false);
+    state.bus_fault = false;
+    state.bus_ready = true;
     check_read("read_distance", "{\"slot\":2}", "ok", true);
     check_read("read_temperature", "{\"slot\":2}", "unsupported", false);
     check_http_question(&distance);

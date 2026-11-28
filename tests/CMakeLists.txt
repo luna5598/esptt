@@ -41,3 +41,7 @@ add_executable(test_slot_observation test_slot_observation.c ../main/slot_observ
 target_include_directories(test_slot_observation PRIVATE ../main ../components/moban_core/include
     ../components/limb_reader/include ../components/limb_protocol/include)
 add_test(NAME slot_observation COMMAND test_slot_observation)
+add_executable(test_limb_scan test_limb_scan.c ../main/limb_scan.c)
+target_include_directories(test_limb_scan PRIVATE ../main ../components/moban_core/include
+    ../components/limb_reader/include ../components/limb_protocol/include)
+add_test(NAME limb_mux_isolation COMMAND test_limb_scan)

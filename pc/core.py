@@ -34,6 +34,8 @@ def load():
         "bench_init": ([B], c.c_bool), "bench_contact": ([U, c.c_bool], None),
         "bench_attach": ([U, c.c_bool], None), "bench_distance": ([U, U], None),
         "bench_fault": ([U, U], None), "bench_status": ([U], c.c_char_p),
+        "bench_branch_lines": ([U, U], None), "bench_upstream_lines": ([U], None),
+        "bench_bus_fault": ([], c.c_bool),
         "bench_tick": ([U, B, c.c_int, c.c_int], None),
         "mo_slot": ([U], c.POINTER(Slot)), "mo_course": ([], c.POINTER(Course)),
         "mo_read": ([B, U, U, B], I),

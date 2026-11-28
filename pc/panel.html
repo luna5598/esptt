@@ -5,6 +5,9 @@
 <p><label>传感器响应 <select id="fault-mode"><option value="0">正常</option><option value="1">持续忙</option>
 <option value="2">无应答</option><option value="3">温湿度 CRC 错误 / 测距质量无效</option></select></label>
 <button id="apply-fault">应用到所选槽位</button></p>
+<p><label>I²C 线路 <select id="line-mode"><option value="0">正常</option><option value="1">SDA 持续拉低</option>
+<option value="2">SCL 持续拉低</option></select></label>
+<button id="branch-lines">应用到所选支路</button> <button id="body-lines">应用到身体总线</button></p>
 <p><label>模拟已识别口令 <select id="phrase"><option>开始测距</option><option>停止记录</option>
 <option>继续记录</option><option>开始测温</option></select></label> <button id="say">执行口令</button></p>
 <p><label>模拟实体按键 <select id="key"><option value="1">开始</option><option value="2">继续</option>
@@ -15,11 +18,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function update(path, params){
     if(!state||!online)return;
     const slot=Number(el('target').value);
-    const q=new URLSearchParams({boot:state.boot,slot,gen:state.slots[slot].generation,...params});
+    const targetArgs=path==='bus'?{}:{slot,gen:state.slots[slot].generation};
+    const q=new URLSearchParams({boot:state.boot,...targetArgs,...params});
     try{
       const r=await fetch('/sim/'+path+'?'+q,{method:'POST',headers:{'X-MOBan-UI':'1'}});
       const body=await r.json();
-      el('bench-status').textContent=r.ok?'已应用到'+state.slots[slot].name:(reasons[body.error]||'输入无效');
+      const target=path==='bus'?'身体总线':state.slots[slot].name;
+      el('bench-status').textContent=r.ok?'已应用到'+target:(reasons[body.error]||'输入无效');
     }catch{el('bench-status').textContent='模拟台连接中断';}
     await refresh();
   }
@@ -29,6 +34,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   el('say').onclick=()=>state&&update('voice',{run:state.course.run,phrase:el('phrase').value});
   el('press').onclick=()=>state&&update('button',{run:state.course.run,key:el('key').value});
   el('detach').onclick=()=>update('presence',{present:0});
+  el('branch-lines').onclick=()=>update('branch',{mode:el('line-mode').value});
+  el('body-lines').onclick=()=>update('bus',{mode:el('line-mode').value});
   el('apply-fault').onclick=()=>update('fault',{mode:el('fault-mode').value});
 });
 </script>

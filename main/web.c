@@ -30,8 +30,8 @@ static esp_err_t send_state(httpd_req_t *req)
     char part[320];
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    snprintf(part,sizeof(part),"{\"boot\":\"%016" PRIx64 "\",\"bus_ready\":%s,\"agent_enabled\":%s,\"slots\":[",
-             s.boot,s.bus_ready?"true":"false",agent_network_configured()?"true":"false");
+    snprintf(part,sizeof(part),"{\"boot\":\"%016" PRIx64 "\",\"bus_ready\":%s,\"bus_fault\":%s,\"agent_enabled\":%s,\"slots\":[",
+             s.boot,s.bus_ready?"true":"false",s.bus_fault?"true":"false",agent_network_configured()?"true":"false");
     if (httpd_resp_sendstr_chunk(req,part)!=ESP_OK) return ESP_FAIL;
     for (unsigned i=0;i<MO_SLOT_COUNT;i++) {
         const mo_slot_view *v=&s.slots[i];

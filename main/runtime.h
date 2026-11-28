@@ -9,11 +9,11 @@ typedef struct {
     enum limb_result status[MO_SLOT_COUNT];
     mo_course_view course;
     uint64_t elapsed_ms;
-    bool bus_ready;
+    bool bus_ready, bus_fault;
 } device_snapshot;
 
 void device_init(void);
-void device_bus_ready(void);
+void device_bus_fault(void);
 void device_observe(unsigned slot, const limb_poll_result *poll);
 void device_snapshot_read(device_snapshot *out);
 int device_course_action(enum mo_action action, uint64_t boot, unsigned slot, uint32_t gen, uint32_t run);
