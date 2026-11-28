@@ -1,11 +1,21 @@
 #include "slot_observation.h"
 
 static const char *const link_names[] = {"offline","empty","pending","unsupported",
-    "foreign_binding","bad_frame","link_fault","invalid_sample","unchanged","sample"};
+    "foreign_binding","bad_frame","link_fault","invalid_sample","unchanged","sample","channel_fault","bus_unavailable"};
 
 const char *mo_link_name(enum limb_result result)
 {
     return link_names[result];
+}
+
+void mo_observe_bus_fault(uint64_t now, enum limb_result status[MO_SLOT_COUNT])
+{
+    /* No slot identity can be confirmed during an upstream outage. Retire the
+     * old action targets and pause an active course until the user resumes it. */
+    for (unsigned i = 0; i < MO_SLOT_COUNT; ++i) {
+        mo_set_tip(i, MO_NO_TIP, now);
+        status[i] = LIMB_BUS_UNAVAILABLE;
+    }
 }
 
 void mo_observe_slot(uint64_t boot, unsigned slot, uint64_t now, const limb_poll_result *poll)

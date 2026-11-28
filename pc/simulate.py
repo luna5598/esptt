@@ -50,7 +50,8 @@ class Bench:
         c = self.core.mo_course().contents
         field = "distance_mm" if c.tip == 2 else "temp_centi"
         samples = [{"ms": c.times[i], field: c.values[i]} for i in range(c.count)]
-        return dict(boot=f"{self.boot:016x}", bus_ready=True, slots=slots,
+        bus_fault = self.core.bench_bus_fault()
+        return dict(boot=f"{self.boot:016x}", bus_ready=not bus_fault, bus_fault=bus_fault, slots=slots,
                     course=dict(run=c.run, phase=PHASES[c.phase], slot=c.slot, goal=10, samples=samples,
                                 tip=c.tip, events=c.events, timer_paused=bool(c.paused),
                                 elapsed_ms=self.core.mo_elapsed_ms(now)))
@@ -66,10 +67,16 @@ class Bench:
             return value
 
         boot = number("boot", r"[0-9a-fA-F]{16}", (1 << 64) - 1, 16)
+        if path == "/sim/bus":
+            if boot != self.boot:
+                return 2
+            self.core.bench_upstream_lines(number("mode", "[0-2]", 2))
+            self.tick()
+            return 0
         idx = number("slot", r"[0-9]", len(LABELS) - 1)
         gen = number("gen", r"[0-9]{1,10}", UINT32_MAX)
         now = self.now()
-        if path in ("/sim/presence", "/sim/distance", "/sim/fault"):
+        if path in ("/sim/presence", "/sim/distance", "/sim/fault", "/sim/branch"):
             slot = self.core.mo_slot(idx).contents
             if boot != self.boot:
                 return 2
@@ -81,6 +88,8 @@ class Bench:
                     self.core.bench_attach(idx, kind == 2)
                 else:
                     self.core.bench_contact(idx, False)
+            elif path == "/sim/branch":
+                self.core.bench_branch_lines(idx, number("mode", "[0-2]", 2))
             elif path == "/sim/distance":
                 if slot.tip != 2:
                     return 9
@@ -138,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         req = urlsplit(self.path)
         if req.path not in ("/api/start", "/api/resume", "/api/action", "/sim/presence", "/sim/fault",
-                            "/sim/distance", "/sim/button", "/sim/voice"):
+                            "/sim/distance", "/sim/branch", "/sim/bus", "/sim/button", "/sim/voice"):
             return self.send_error(404)
         host = self.headers.get("Host")
         if (self.headers.get("X-MOBan-UI") != "1" or

@@ -1,4 +1,5 @@
 #include "slot_observation.h"
+#include "limb_scan.h"
 #include "r01/tip_profile.h"
 #include "vl53l1x_fixture.h"
 #include <string.h>
@@ -8,7 +9,6 @@ enum sensor_fault { NORMAL, STUCK_BUSY, NO_ACK, BAD_FRAME };
 typedef struct {
     tip_acquisition tip;
     limb_reader reader;
-    enum limb_result status;
     enum sensor_fault fault;
     bool seated, detached, powered, calibrated, triggered;
     uint32_t clock, trigger_ms;
@@ -16,11 +16,38 @@ typedef struct {
     uint16_t tip_adc, distance_mm;
     int temperature, humidity;
     uint8_t frame[7];
+    unsigned lines_low, hold_after_poll;
 } bench_slot;
 
 static bench_slot slots[MO_SLOT_COUNT];
+static enum limb_result status[MO_SLOT_COUNT];
 static uint64_t bench_boot;
 static uint32_t session_counter;
+static limb_scan scan;
+static int selected;
+static unsigned upstream_lines_low;
+static bool bus_fault;
+
+static bool bus_blocked(void)
+{
+    return upstream_lines_low || (selected >= 0 && slots[selected].lines_low);
+}
+
+static bool select_slot(void *ctx, unsigned slot)
+{
+    (void)ctx;
+    if (bus_blocked()) return false;
+    selected = (int)slot;
+    return true;
+}
+
+static bool recover_mux(void *ctx)
+{
+    (void)ctx;
+    selected = -1;
+    return !bus_blocked();
+}
+
 static void power(void *ctx, bool on)
 {
     bench_slot *s = ctx;
@@ -112,11 +139,33 @@ static bool node_write(void *ctx, const uint8_t *p, size_t n)
     return temperature_node_write(&s->tip.node, p, n);
 }
 
+static bool poll_node(void *ctx, unsigned slot, limb_poll_result *out)
+{
+    (void)ctx;
+    if (selected != (int)slot || bus_blocked()) return false;
+    bench_slot *s = &slots[slot];
+    limb_transport transport = {s, node_read, node_write};
+    if (++session_counter == 0) ++session_counter;
+    *out = limb_poll(&s->reader, &transport, session_counter);
+    /* Hold the chosen line after the node has finished replying, so the
+     * following switch sees the previous branch on the upstream wires. */
+    if (s->hold_after_poll) {
+        s->lines_low = s->hold_after_poll;
+        s->hold_after_poll = 0;
+    }
+    return true;
+}
+
 bool bench_init(uint64_t boot)
 {
     memset(slots, 0, sizeof(slots));
+    memset(status, 0, sizeof(status));
     bench_boot = boot;
     session_counter = 0;
+    selected = -1;
+    upstream_lines_low = 0;
+    bus_fault = false;
+    scan = (limb_scan){0};
     mo_init(boot);
     for (unsigned i = 0; i < MO_SLOT_COUNT; i++) {
         bench_slot *s = &slots[i];
@@ -155,6 +204,23 @@ void bench_fault(unsigned slot, unsigned fault)
     slots[slot].fault = (enum sensor_fault)fault;
 }
 
+void bench_branch_lines(unsigned slot, unsigned mask)
+{
+    bench_slot *s = &slots[slot];
+    if (!mask || s->lines_low) s->lines_low = mask;
+    s->hold_after_poll = s->lines_low ? 0 : mask;
+}
+
+void bench_upstream_lines(unsigned mask)
+{
+    upstream_lines_low = mask;
+}
+
+bool bench_bus_fault(void)
+{
+    return bus_fault;
+}
+
 void bench_tick(unsigned slot, uint64_t now, int temp, int humidity)
 {
     bench_slot *s = &slots[slot];
@@ -163,15 +229,20 @@ void bench_tick(unsigned slot, uint64_t now, int temp, int humidity)
     s->humidity = humidity;
     tip_acquisition_tick(&s->tip, s->clock, s->seated, s->detached, s->seated ? s->tip_adc : 4095);
     s->detached = false;
-    limb_transport transport = {s, node_read, node_write};
-    session_counter++;
-    if (!session_counter) session_counter = 1;
-    limb_poll_result poll = limb_poll(&s->reader, &transport, session_counter);
-    s->status = poll.result;
-    mo_observe_slot(bench_boot, slot, now, &poll);
+    const limb_scan_io io = {.select=select_slot, .recover=recover_mux, .poll=poll_node};
+    limb_poll_result poll;
+    enum scan_event event = limb_scan_slot(&scan, &io, slot, now, &poll);
+    if (event == SCAN_BUS_DOWN) {
+        bus_fault = true;
+        mo_observe_bus_fault(now, status);
+    } else if (event == SCAN_OBSERVED) {
+        bus_fault = false;
+        status[slot] = poll.result;
+        mo_observe_slot(bench_boot, slot, now, &poll);
+    }
 }
 
 const char *bench_status(unsigned slot)
 {
-    return mo_link_name(slots[slot].status);
+    return mo_link_name(status[slot]);
 }

@@ -8,11 +8,11 @@
 #include <string.h>
 
 enum sensor_tool { TEMPERATURE, DISTANCE, TOOL_COUNT };
-enum reading_status { UNREAD, OK, BUS_OFFLINE, EMPTY, UNSUPPORTED, UNAVAILABLE, NO_SAMPLE, STALE };
+enum reading_status { UNREAD, OK, BUS_OFFLINE, EMPTY, UNSUPPORTED, UNAVAILABLE, NO_SAMPLE, STALE, BUS_FAULT };
 static const char *const status_name[] = {
     [OK] = "ok", [BUS_OFFLINE] = "bus_offline", [EMPTY] = "empty",
     [UNSUPPORTED] = "unsupported", [UNAVAILABLE] = "unavailable",
-    [NO_SAMPLE] = "no_sample", [STALE] = "stale"
+    [NO_SAMPLE] = "no_sample", [STALE] = "stale", [BUS_FAULT] = "bus_fault"
 };
 static const enum mo_tip tool_tip[TOOL_COUNT] = {
     [TEMPERATURE] = MO_THERMOMETER, [DISTANCE] = MO_RANGEFINDER
@@ -21,6 +21,7 @@ static const enum mo_tip tool_tip[TOOL_COUNT] = {
 static enum reading_status status_at(const device_snapshot *s, unsigned slot, enum sensor_tool tool)
 {
     const mo_slot_view *v = &s->slots[slot];
+    if (s->bus_fault) return BUS_FAULT;
     if (!s->bus_ready) return BUS_OFFLINE;
     switch (s->status[slot]) {
     case LIMB_EMPTY_SLOT: return EMPTY;

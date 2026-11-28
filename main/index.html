@@ -20,8 +20,8 @@ button{background:#235c4c;color:white}button:disabled{opacity:.45}#samples{overf
 <button id="askbutton">提问</button></form><p id="answer" role="status"></p></section></main>
 <script>
 const el=id=>document.getElementById(id);
-const links={offline:'节点离线',empty:'未插配件',pending:'识别中',unsupported:'当前课程不支持此配件',foreign_binding:'节点会话不匹配，请复位该槽',bad_frame:'帧校验或身份错误',link_fault:'总线或节点故障',invalid_sample:'样本无效',unchanged:'等待新样本',sample:'已采样'};
-const phases={idle:'待开始',running:'采样中',waiting:'配件已离开，等待确认',done:'已完成',stopped:'已停止'};
+const links={offline:'节点离线',empty:'未插配件',pending:'识别中',unsupported:'当前课程不支持此配件',foreign_binding:'节点会话不匹配，请复位该槽',bad_frame:'帧校验或身份错误',link_fault:'支路或节点通信故障',channel_fault:'此通道选通失败',bus_unavailable:'等待身体总线恢复',invalid_sample:'样本无效',unchanged:'等待新样本',sample:'已采样'};
+const phases={idle:'待开始',running:'采样中',waiting:'采样已暂停，等待确认模块',done:'已完成',stopped:'已停止'};
 const reasons=['成功','槽位无效','设备已重启','配件已更换','槽位为空','没有新鲜读数','课程已改变','当前步骤无法执行','超出范围','配件类型与课程不匹配'];
 let state=null,online=false,busy=false;
 ['左手','右手','左脚','右脚'].forEach((name,i)=>{
@@ -51,7 +51,7 @@ function render(){
   el('samples').textContent=c.samples.map(s=>c.tip===2
     ? (s.ms/1000).toFixed(1)+' s · '+s.distance_mm+' mm' : (s.temp_centi/100).toFixed(2)+' °C').join('　');
   el('progress').value=c.samples.length;
-  el('action').textContent=waiting?'确认新模块并继续':slots[i].tip===2?'开始测距':'开始记录';
+  el('action').textContent=waiting?'确认模块并继续':slots[i].tip===2?'开始测距':'开始记录';
   el('action').disabled=busy||!online||!slots[i].fresh||c.phase==='running'||(waiting&&(i!==c.slot||slots[i].tip!==c.tip));
   el('stop').hidden=!active;
   el('stop').disabled=busy||!online;
@@ -59,7 +59,7 @@ function render(){
 }
 async function refresh(){
   try{const r=await fetch('/api/state',{cache:'no-store'});if(!r.ok)throw Error();state=await r.json();online=true;
-    el('network').textContent=state.bus_ready?'设备已连接':'设备已连接，四肢总线尚未启用';}
+    el('network').textContent=state.bus_fault?'身体侧四肢总线故障，正在重试':state.bus_ready?'设备已连接':'设备已连接，四肢总线尚未就绪';}
   catch{online=false;el('network').textContent='设备连接中断';}
   render();
 }

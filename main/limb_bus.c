@@ -4,6 +4,7 @@
 #include "esp_log.h"
 
 #if CONFIG_MOBAN_LIMB_BUS
+#include "limb_scan.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_random.h"
@@ -15,7 +16,8 @@
 static i2c_master_dev_handle_t mux, node;
 static i2c_master_bus_handle_t bus;
 static limb_reader readers[MO_SLOT_COUNT];
-static uint64_t retry_ms[MO_SLOT_COUNT];
+static limb_scan scan;
+static uint64_t power_wait_ms[MO_SLOT_COUNT];
 static const int enable_pin[MO_SLOT_COUNT] = {
     CONFIG_MOBAN_SLOT_0_EN, CONFIG_MOBAN_SLOT_1_EN, CONFIG_MOBAN_SLOT_2_EN, CONFIG_MOBAN_SLOT_3_EN
 };
@@ -26,65 +28,81 @@ static bool powered_off[MO_SLOT_COUNT];
 #define SLOT_POWER_ON 1
 #endif
 static uint32_t session;
-static esp_err_t last_error;
 static const int reset_pin = CONFIG_MOBAN_MUX_RESET;
 
-static void isolate(void)
+static bool isolate(void)
 {
-    gpio_set_level(reset_pin, 0);
+    if (gpio_set_level(reset_pin, 0) != ESP_OK) return false;
     esp_rom_delay_us(10);
-    gpio_set_level(reset_pin, 1);
+    if (gpio_set_level(reset_pin, 1) != ESP_OK) return false;
     esp_rom_delay_us(10);
+    return true;
 }
 
 static bool read_node(void *ctx, uint8_t reg, uint8_t *data, size_t n)
 {
-    (void)ctx;
-    last_error = i2c_master_transmit_receive(node, &reg, 1, data, n, 12);
-    return last_error == ESP_OK;
+    bool *ok = ctx;
+    *ok = i2c_master_transmit_receive(node, &reg, 1, data, n, 12) == ESP_OK;
+    return *ok;
 }
 
 static bool write_node(void *ctx, const uint8_t *data, size_t n)
 {
+    bool *ok = ctx;
+    *ok = i2c_master_transmit(node, data, n, 12) == ESP_OK;
+    return *ok;
+}
+
+static bool select_slot(void *ctx, unsigned slot)
+{
     (void)ctx;
-    last_error = i2c_master_transmit(node, data, n, 12);
-    return last_error == ESP_OK;
+    uint8_t channel = (uint8_t)(1u << slot);
+    return i2c_master_transmit(mux, &channel, 1, 12) == ESP_OK;
+}
+
+static bool recover_mux(void *ctx)
+{
+    (void)ctx;
+    uint8_t mask;
+    if (!isolate() || i2c_master_bus_reset(bus) != ESP_OK) return false;
+    if (i2c_master_receive(mux, &mask, 1, 12) != ESP_OK || (mask & 0x0f)) return false;
+    /* Verify the upstream write path too, without connecting a branch. */
+    uint8_t off = 0;
+    return i2c_master_transmit(mux, &off, 1, 12) == ESP_OK;
+}
+
+static bool poll_node(void *ctx, unsigned slot, limb_poll_result *out)
+{
+    (void)ctx;
+    bool ok = true;
+    const limb_transport transport = {.ctx=&ok, .read=read_node, .write=write_node};
+    if (++session == 0) session++;
+    *out = limb_poll(&readers[slot], &transport, session);
+    return ok;
 }
 
 static void poll_task(void *arg)
 {
     (void)arg;
-    const limb_transport io = {.read=read_node, .write=write_node};
+    const limb_scan_io io = {.select=select_slot, .recover=recover_mux, .poll=poll_node};
     for (;;) {
         for (unsigned i=0; i<MO_SLOT_COUNT; ++i) {
             uint64_t now = (uint64_t)esp_timer_get_time()/1000;
-            if (now < retry_ms[i]) continue;
+            if (now < power_wait_ms[i]) continue;
             if (powered_off[i]) {
-                gpio_set_level(enable_pin[i], SLOT_POWER_ON);
-                powered_off[i] = false;
-                retry_ms[i] = now + 150;
+                if (gpio_set_level(enable_pin[i], SLOT_POWER_ON) == ESP_OK) powered_off[i] = false;
+                power_wait_ms[i] = now + 150;
                 continue;
             }
-            uint8_t channel = (uint8_t)(1u << i);
-            limb_poll_result result = {.result=LIMB_LINK_FAULT};
-            last_error = i2c_master_transmit(mux, &channel, 1, 12);
-            if (last_error == ESP_OK) {
-                if (++session == 0) session++;
-                result = limb_poll(&readers[i], &io, session);
-            }
-            if (last_error != ESP_OK) {
-                isolate();
-                if (last_error == ESP_ERR_TIMEOUT) i2c_master_bus_reset(bus);
-                retry_ms[i] = now + 500;
-            }
-            if (result.result == LIMB_FOREIGN_BINDING) {
-                isolate();
-                retry_ms[i] = now + 1000;
-                if (enable_pin[i] >= 0) {
-                    gpio_set_level(enable_pin[i], !SLOT_POWER_ON);
-                    powered_off[i] = true;
-                    readers[i] = (limb_reader){0};
-                }
+            limb_poll_result result;
+            enum scan_event event = limb_scan_slot(&scan, &io, i, now, &result);
+            if (event == SCAN_BUS_DOWN) device_bus_fault();
+            if (event != SCAN_OBSERVED) continue;
+            if (result.result == LIMB_FOREIGN_BINDING && enable_pin[i] >= 0 &&
+                gpio_set_level(enable_pin[i], !SLOT_POWER_ON) == ESP_OK) {
+                powered_off[i] = true;
+                power_wait_ms[i] = scan.slot_retry_ms[i];
+                readers[i] = (limb_reader){0};
             }
             device_observe(i, &result);
         }
@@ -110,7 +128,7 @@ esp_err_t limb_bus_start(void)
     }
     esp_err_t err = gpio_set_direction(reset_pin, GPIO_MODE_OUTPUT);
     if (err != ESP_OK) return err;
-    isolate();
+    if (!isolate()) return ESP_FAIL;
     i2c_master_bus_config_t cfg = {.i2c_port=-1, .sda_io_num=sda, .scl_io_num=scl,
         .clk_source=I2C_CLK_SRC_DEFAULT, .glitch_ignore_cnt=7};
     err = i2c_new_master_bus(&cfg, &bus);
@@ -129,13 +147,10 @@ esp_err_t limb_bus_start(void)
         err = gpio_set_direction(enable_pin[i], GPIO_MODE_OUTPUT);
         if (err != ESP_OK) goto cleanup;
         powered_off[i] = true;
-        retry_ms[i] = (uint64_t)esp_timer_get_time()/1000 + 100;
+        power_wait_ms[i] = (uint64_t)esp_timer_get_time()/1000 + 100;
     }
     session = esp_random();
-    if (xTaskCreate(poll_task, "limb_bus", 4096, NULL, 5, NULL) == pdPASS) {
-        device_bus_ready();
-        return ESP_OK;
-    }
+    if (xTaskCreate(poll_task, "limb_bus", 4096, NULL, 5, NULL) == pdPASS) return ESP_OK;
     err = ESP_ERR_NO_MEM;
 cleanup:
     if (node) i2c_master_bus_rm_device(node);

@@ -117,6 +117,72 @@ class TemperatureLab(unittest.TestCase):
                 recovered = self.wait_slot(0, lambda s: s["fresh"])
                 self.assertEqual(recovered["slots"][0]["generation"], left["gen"])
 
+    def test_previous_branch_held_during_right_hand_lesson(self):
+        state = self.state()
+        boot = state["boot"]
+        self.assertEqual(self.post("/sim/presence", boot=boot, slot=3,
+                                   gen=state["slots"][3]["generation"], present=1, tip=1)[0], 200)
+        for idx in range(4):
+            state = self.wait_slot(idx, lambda s: s["fresh"])
+        generations = [s["generation"] for s in state["slots"]]
+        left = dict(boot=boot, slot=0, gen=generations[0])
+        right = dict(boot=boot, slot=1, gen=generations[1])
+        self.assertEqual(self.post("/api/start", **right, run=0)[0], 200)
+        self.assertEqual(self.post("/sim/branch", **left, mode=1)[0], 200)
+        fault = self.wait_slot(0, lambda s: s["status"] == "link_fault")
+        self.assertIsNone(fault["slots"][0]["temp_centi"])
+        before = len(fault["course"]["samples"])
+        deadline = time.monotonic() + 5
+        while True:
+            state = self.state()
+            self.assertTrue(state["bus_ready"])
+            self.assertFalse(state["bus_fault"])
+            self.assertEqual(state["course"]["phase"], "running")
+            self.assertEqual(state["slots"][0]["status"], "link_fault")
+            for idx in (1, 2, 3):
+                self.assertTrue(state["slots"][idx]["fresh"])
+                self.assertEqual(state["slots"][idx]["generation"], generations[idx])
+            if len(state["course"]["samples"]) > before:
+                break
+            self.assertLess(time.monotonic(), deadline, state)
+            time.sleep(0.05)
+        self.assertEqual(self.post("/sim/branch", **left, mode=0), (409, {"error": 3}))
+        self.assertEqual(self.post("/sim/branch", **dict(left, gen=state["slots"][0]["generation"]),
+                                   mode=0)[0], 200)
+        recovered = self.wait_slot(0, lambda s: s["fresh"])
+        self.assertNotEqual(recovered["slots"][0]["generation"], generations[0])
+
+    def test_body_bus_fault_retires_targets_until_recovery(self):
+        state = self.wait_slot(0, lambda s: s["fresh"])
+        boot = state["boot"]
+        left = dict(boot=boot, slot=0, gen=state["slots"][0]["generation"])
+        self.assertEqual(self.post("/api/start", **left, run=0)[0], 200)
+        self.assertEqual(self.post("/sim/bus", boot=boot, mode=2)[0], 200)
+        fault = self.wait_slot(0, lambda s: s["status"] == "bus_unavailable")
+        self.assertEqual(self.post("/sim/bus", boot="0000000000000000", mode=0), (409, {"error": 2}))
+        time.sleep(0.55)  # Includes one retry while SCL is still held.
+        held = self.state()
+        for snapshot in (fault, held):
+            self.assertFalse(snapshot["bus_ready"])
+            self.assertTrue(snapshot["bus_fault"])
+            self.assertEqual(snapshot["course"]["phase"], "waiting")
+            for slot in snapshot["slots"]:
+                self.assertEqual(slot["status"], "bus_unavailable")
+                self.assertFalse(slot["fresh"])
+                self.assertIsNone(slot["temp_centi"])
+                self.assertIsNone(slot["distance_mm"])
+        self.assertEqual([s["generation"] for s in held["slots"]],
+                         [s["generation"] for s in fault["slots"]])
+        self.assertEqual(self.post("/sim/bus", boot=boot, mode=0)[0], 200)
+        for idx in (0, 1, 2):
+            state = self.wait_slot(idx, lambda s: s["fresh"])
+        self.assertTrue(state["bus_ready"])
+        self.assertFalse(state["bus_fault"])
+        self.assertEqual(state["course"]["phase"], "waiting")
+        self.assertEqual(self.post("/api/resume", **left, run=1), (409, {"error": 3}))
+        current = dict(left, gen=state["slots"][0]["generation"])
+        self.assertEqual(self.post("/api/resume", **current, run=1)[0], 200)
+
     def test_replace_module_and_finish_lesson(self):
         initial = self.wait_slot(0, lambda s: s["fresh"])
         left = dict(boot=initial["boot"], slot=0, gen=initial["slots"][0]["generation"])
